@@ -1,161 +1,144 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import requests
+from typing import List, Optional
+from datetime import datetime
 import os
 from dotenv import load_dotenv
-from datetime import datetime
-from typing import List, Dict, Any
 
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="Canvas Assignment Manager", version="1.0.0")
+app = FastAPI()
 
-# Add CORS middleware
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Canvas API configuration
-CANVAS_TOKEN = os.getenv('CANVAS_API_TOKEN')
-CANVAS_BASE_URL = os.getenv('CANVAS_BASE_URL')
-
-def get_canvas_headers():
-    return {
-        'Authorization': f'Bearer {CANVAS_TOKEN}',
-        'Content-Type': 'application/json'
-    }
+CANVAS_API_TOKEN = os.getenv("CANVAS_API_TOKEN")
+CANVAS_BASE_URL = os.getenv("CANVAS_BASE_URL", "https://his.instructure.com")
+HEADERS = {
+    "Authorization": f"Bearer {CANVAS_API_TOKEN}"
+}
 
 @app.get("/")
-async def root():
-    return {"message": "Canvas Assignment Manager API", "status": "running"}
+def read_root():
+    return {"message": "Canvas Assignment Manager API"}
+
+@app.get("/api/user")
+def get_user():
+    """Get current user information"""
+    try:
+        response = requests.get(
+            f"{CANVAS_BASE_URL}/api/v1/users/self",
+            headers=HEADERS
+        )
+        response.raise_for_status()
+        user_data = response.json()
+        return {
+            "id": user_data.get("id"),
+            "name": user_data.get("name"),
+            "email": user_data.get("primary_email")
+        }
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/courses")
-async def get_courses():
-    """Get all courses for the authenticated user"""
+def get_courses():
+    """Get all active courses for the user"""
     try:
-        headers = get_canvas_headers()
-        response = requests.get(f'{CANVAS_BASE_URL}/courses', headers=headers)
-        
-        if response.status_code == 200:
-            courses = response.json()
-            # Filter and clean course data
-            cleaned_courses = []
-            for course in courses:
-                cleaned_courses.append({
-                    'id': course.get('id'),
-                    'name': course.get('name'),
-                    'course_code': course.get('course_code'),
-                    'enrollment_term_id': course.get('enrollment_term_id'),
-                    'start_at': course.get('start_at'),
-                    'end_at': course.get('end_at')
-                })
-            return {"courses": cleaned_courses}
-        else:
-            raise HTTPException(status_code=response.status_code, detail="Failed to fetch courses")
-    except Exception as e:
+        response = requests.get(
+            f"{CANVAS_BASE_URL}/api/v1/courses",
+            headers=HEADERS,
+            params={
+                "enrollment_state": "active",
+                "per_page": 100
+            }
+        )
+        response.raise_for_status()
+        courses = response.json()
+        return [
+            {
+                "id": course.get("id"),
+                "name": course.get("name"),
+                "course_code": course.get("course_code")
+            }
+            for course in courses
+            if not course.get("access_restricted_by_date")
+        ]
+    except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/assignments")
-async def get_all_assignments():
-    """Get all assignments from all courses"""
+def get_all_assignments():
+    """Get all assignments across all courses"""
     try:
-        headers = get_canvas_headers()
-        
         # First get all courses
-        courses_response = requests.get(f'{CANVAS_BASE_URL}/courses', headers=headers)
-        if courses_response.status_code != 200:
-            raise HTTPException(status_code=courses_response.status_code, detail="Failed to fetch courses")
-        
-        courses = courses_response.json()
+        courses = get_courses()
         all_assignments = []
         
-        # Get assignments for each course
         for course in courses:
-            course_id = course.get('id')
-            course_name = course.get('name', 'Unknown Course')
-            
-            assignments_response = requests.get(
-                f'{CANVAS_BASE_URL}/courses/{course_id}/assignments', 
-                headers=headers
+            course_id = course["id"]
+            response = requests.get(
+                f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/assignments",
+                headers=HEADERS,
+                params={
+                    "per_page": 100,
+                    "order_by": "due_at"
+                }
             )
             
-            if assignments_response.status_code == 200:
-                assignments = assignments_response.json()
-                
+            if response.status_code == 200:
+                assignments = response.json()
                 for assignment in assignments:
-                    # Parse due date
-                    due_at = assignment.get('due_at')
-                    due_date_formatted = None
-                    if due_at:
-                        try:
-                            due_date = datetime.fromisoformat(due_at.replace('Z', '+00:00'))
-                            due_date_formatted = due_date.strftime('%Y-%m-%d %H:%M')
-                        except:
-                            due_date_formatted = due_at
-                    
-                    all_assignments.append({
-                        'id': assignment.get('id'),
-                        'name': assignment.get('name'),
-                        'description': assignment.get('description', ''),
-                        'due_at': due_at,
-                        'due_date_formatted': due_date_formatted,
-                        'points_possible': assignment.get('points_possible'),
-                        'course_id': course_id,
-                        'course_name': course_name,
-                        'html_url': assignment.get('html_url'),
-                        'submission_types': assignment.get('submission_types', [])
-                    })
+                    if not assignment.get("is_quiz_assignment"):  # Skip quiz assignments
+                        all_assignments.append({
+                            "id": assignment.get("id"),
+                            "name": assignment.get("name"),
+                            "course_name": course["name"],
+                            "course_id": course_id,
+                            "due_at": assignment.get("due_at"),
+                            "points_possible": assignment.get("points_possible"),
+                            "html_url": assignment.get("html_url")
+                        })
         
-        # Sort assignments by due date (upcoming first)
-        all_assignments.sort(key=lambda x: x['due_at'] or '9999-12-31', reverse=False)
-        
-        return {"assignments": all_assignments, "total": len(all_assignments)}
-        
+        return all_assignments
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/assignments/{course_id}")
-async def get_course_assignments(course_id: int):
+def get_course_assignments(course_id: int):
     """Get assignments for a specific course"""
     try:
-        headers = get_canvas_headers()
         response = requests.get(
-            f'{CANVAS_BASE_URL}/courses/{course_id}/assignments', 
-            headers=headers
-        )
-        
-        if response.status_code == 200:
-            assignments = response.json()
-            return {"assignments": assignments}
-        else:
-            raise HTTPException(status_code=response.status_code, detail="Failed to fetch assignments")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/user")
-async def get_user_info():
-    """Get current user information"""
-    try:
-        headers = get_canvas_headers()
-        response = requests.get(f'{CANVAS_BASE_URL}/users/self', headers=headers)
-        
-        if response.status_code == 200:
-            user = response.json()
-            return {
-                "name": user.get('name'),
-                "login_id": user.get('login_id'),
-                "email": user.get('email'),
-                "id": user.get('id')
+            f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/assignments",
+            headers=HEADERS,
+            params={
+                "per_page": 100,
+                "order_by": "due_at"
             }
-        else:
-            raise HTTPException(status_code=response.status_code, detail="Failed to fetch user info")
-    except Exception as e:
+        )
+        response.raise_for_status()
+        assignments = response.json()
+        
+        return [
+            {
+                "id": assignment.get("id"),
+                "name": assignment.get("name"),
+                "due_at": assignment.get("due_at"),
+                "points_possible": assignment.get("points_possible"),
+                "html_url": assignment.get("html_url")
+            }
+            for assignment in assignments
+            if not assignment.get("is_quiz_assignment")
+        ]
+    except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
