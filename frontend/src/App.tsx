@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-import { Calendar, Clock, User, BookOpen, CheckCircle, AlertCircle, Filter, ChevronRight, ArrowRight, Info } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Calendar, Clock, User, BookOpen, CheckCircle, AlertCircle, Filter, ChevronRight, ArrowRight, Info, Menu, X, Github, Linkedin, Home, FileText } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -30,30 +30,62 @@ interface UserInfo {
   login_id: string;
 }
 
+function Navigation({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const menuItems = [
+    { name: 'Home', path: '/' },
+    { name: 'About', path: '/about' },
+    ...(isAuthenticated ? [{ name: 'Assignments', path: '/assignments' }] : [])
+  ];
+
+  const isActive = (path: string) => location.pathname === path;
+
+  return (
+    <nav className="bg-white shadow-sm border-b">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center">
+            <BookOpen className="w-8 h-8 text-blue-600 mr-3" />
+            <h1 className="text-xl font-semibold text-gray-900">Canvas Assignment Scheduler</h1>
+          </div>
+          
+          {/* Navigation Tabs */}
+          <div className="flex items-center space-x-8">
+            {menuItems.map((item) => (
+              <button
+                key={item.name}
+                onClick={() => navigate(item.path)}
+                className={`text-base font-medium transition-colors ${
+                  isActive(item.path)
+                    ? 'text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
 function LandingPage() {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <BookOpen className="w-8 h-8 text-blue-600 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">Canvas Assignment Scheduler</h1>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-6">
             Never Miss Another Canvas Assignment
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            A simple tool that checks your upcoming Canvas deadlines and lets you schedule them in Google Calendar with just one click. 
-            Stay organized and never lose track of your assignments again.
+            A simple tool that helps you organize your Canvas assignments and schedule them in Google Calendar when you're ready. 
+            Take control of your deadlines and never lose track of your assignments again.
           </p>
           
           <button
@@ -68,26 +100,80 @@ function LandingPage() {
         <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="bg-white rounded-lg p-6 shadow-md">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <Calendar className="w-6 h-6 text-blue-600" />
+              <BookOpen className="w-6 h-6 text-blue-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Automatic Sync</h3>
-            <p className="text-gray-600">Connect your Canvas account and automatically fetch all your upcoming assignments across all courses.</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Organization</h3>
+            <p className="text-gray-600">Connect your Canvas account and view all your upcoming assignments across all courses in one place.</p>
           </div>
           
           <div className="bg-white rounded-lg p-6 shadow-md">
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">One-Click Scheduling</h3>
-            <p className="text-gray-600">Add any assignment to your Google Calendar with a single click, complete with course details and Canvas links.</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Bulk Calendar Scheduling</h3>
+            <p className="text-gray-600">Select multiple assignments and add them to your Google Calendar all at once, complete with course details and Canvas links.</p>
           </div>
           
           <div className="bg-white rounded-lg p-6 shadow-md">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
               <Filter className="w-6 h-6 text-purple-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Smart Organization</h3>
-            <p className="text-gray-600">Filter by course, sort by due date, and get visual indicators for urgent assignments and overdue work.</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Smart Filtering</h3>
+            <p className="text-gray-600">Filter by course, due date status, and sort assignments to focus on what matters most to you.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AboutPage() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">About Canvas Assignment Scheduler</h1>
+          
+          <div className="prose max-w-none">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">What is this tool?</h2>
+            <p className="text-gray-600 mb-6">
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+              Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
+              Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+            </p>
+            
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">How it works</h2>
+            <p className="text-gray-600 mb-6">
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+              Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+            </p>
+            
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">About the Developer</h2>
+            <p className="text-gray-600 mb-6">
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+              Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+            </p>
+            
+            <div className="flex space-x-4">
+              <a
+                href="https://github.com/yourusername"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <Github className="w-4 h-4 mr-2" />
+                GitHub
+              </a>
+              <a
+                href="https://linkedin.com/in/yourusername"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <Linkedin className="w-4 h-4 mr-2" />
+                LinkedIn
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -134,7 +220,7 @@ function SetupPage() {
       localStorage.setItem('canvasToken', canvasToken);
       localStorage.setItem('canvasUrl', canvasUrl);
       
-      navigate('/app');
+      navigate('/assignments');
     } catch (err) {
       setError('Failed to validate credentials. Please check your connection and try again.');
     } finally {
@@ -144,23 +230,6 @@ function SetupPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <BookOpen className="w-8 h-8 text-blue-600 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">Canvas Assignment Scheduler</h1>
-            </div>
-            <button
-              onClick={() => navigate('/')}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Back to Home
-            </button>
-          </div>
-        </div>
-      </header>
-
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Connect Your Canvas Account</h2>
@@ -247,7 +316,9 @@ function MainApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'course'>('date');
-  const [showPastDue, setShowPastDue] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'overdue' | 'no-date'>('upcoming');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [selectedAssignments, setSelectedAssignments] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchData();
@@ -318,21 +389,41 @@ function MainApp() {
       filtered = filtered.filter(a => a.course_id === selectedCourse);
     }
     
-    if (!showPastDue) {
-      filtered = filtered.filter(a => {
-        if (!a.due_at) return true;
-        return new Date(a.due_at) >= new Date();
-      });
+    const now = new Date();
+    
+    switch (statusFilter) {
+      case 'all':
+        // No filtering needed
+        break;
+      case 'upcoming':
+        filtered = filtered.filter(a => {
+          if (!a.due_at) return false;
+          return new Date(a.due_at) >= now;
+        });
+        break;
+      case 'overdue':
+        filtered = filtered.filter(a => {
+          if (!a.due_at) return false;
+          return new Date(a.due_at) < now;
+        });
+        break;
+      case 'no-date':
+        filtered = filtered.filter(a => !a.due_at);
+        break;
     }
     
     return filtered.sort((a, b) => {
+      let comparison = 0;
+      
       if (sortBy === 'date') {
-        if (!a.due_at) return 1;
-        if (!b.due_at) return -1;
-        return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
+        if (!a.due_at) comparison = 1;
+        else if (!b.due_at) comparison = -1;
+        else comparison = new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
       } else {
-        return a.course_name.localeCompare(b.course_name);
+        comparison = a.course_name.localeCompare(b.course_name);
       }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
     });
   };
 
@@ -341,11 +432,21 @@ function MainApp() {
     const date = new Date(dateString);
     const now = new Date();
     const diffTime = date.getTime() - now.getTime();
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays < 0) return `${Math.abs(diffDays)} days overdue`;
-    if (diffDays === 0) return 'Due today';
+    if (diffDays === 0) {
+      if (diffHours < 0) return 'Overdue';
+      if (diffHours === 0) return 'Due now';
+      if (diffHours === 1) return 'Due in 1 hour';
+      return `Due in ${diffHours} hours`;
+    }
     if (diffDays === 1) return 'Due tomorrow';
+    if (diffDays <= 2) {
+      // For deadlines within 48 hours, show hours
+      if (diffHours < 48) return `Due in ${diffHours} hours`;
+    }
     if (diffDays <= 7) return `Due in ${diffDays} days`;
     
     return date.toLocaleDateString('en-US', { 
@@ -367,23 +468,43 @@ function MainApp() {
     return 'text-green-600';
   };
 
-  const addToGoogleCalendar = (assignment: Assignment) => {
-    if (!assignment.due_at) return;
+  const toggleAssignmentSelection = (assignmentId: number) => {
+    const newSelected = new Set(selectedAssignments);
+    if (newSelected.has(assignmentId)) {
+      newSelected.delete(assignmentId);
+    } else {
+      newSelected.add(assignmentId);
+    }
+    setSelectedAssignments(newSelected);
+  };
+
+  const addSelectedToGoogleCalendar = () => {
+    if (selectedAssignments.size === 0) return;
+
+    const selectedAssignmentsList = assignments.filter(a => selectedAssignments.has(a.id));
     
-    const date = new Date(assignment.due_at);
-    const endDate = new Date(date.getTime() + 60 * 60 * 1000);
-    
-    const formatDate = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
-    
-    const details = `Assignment: ${assignment.name}\nCourse: ${assignment.course_name}\nPoints: ${assignment.points_possible || 'N/A'}\nCanvas Link: ${assignment.html_url}`;
-    
-    const url = new URL('https://calendar.google.com/calendar/render');
-    url.searchParams.append('action', 'TEMPLATE');
-    url.searchParams.append('text', `${assignment.name} - ${assignment.course_name}`);
-    url.searchParams.append('dates', `${formatDate(date)}/${formatDate(endDate)}`);
-    url.searchParams.append('details', details);
-    
-    window.open(url.toString(), '_blank');
+    selectedAssignmentsList.forEach((assignment, index) => {
+      if (!assignment.due_at) return;
+      
+      const date = new Date(assignment.due_at);
+      const endDate = new Date(date.getTime() + 60 * 60 * 1000);
+      
+      const formatDate = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
+      
+      const details = `Assignment: ${assignment.name}\nCourse: ${assignment.course_name}\nPoints: ${assignment.points_possible || 'N/A'}\nCanvas Link: ${assignment.html_url}`;
+      
+      const url = new URL('https://calendar.google.com/calendar/render');
+      url.searchParams.append('action', 'TEMPLATE');
+      url.searchParams.append('text', `${assignment.name} - ${assignment.course_name}`);
+      url.searchParams.append('dates', `${formatDate(date)}/${formatDate(endDate)}`);
+      url.searchParams.append('details', details);
+      
+      setTimeout(() => {
+        window.open(url.toString(), '_blank');
+      }, index * 100);
+    });
+
+    setSelectedAssignments(new Set());
   };
 
   if (loading) {
@@ -417,61 +538,49 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <BookOpen className="w-8 h-8 text-blue-600 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">Canvas Assignment Manager</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Welcome back,</p>
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-              </div>
-              <User className="w-8 h-8 text-gray-400" />
-              <button
-                onClick={() => {
-                  localStorage.removeItem('canvasToken');
-                  localStorage.removeItem('canvasUrl');
-                  window.location.href = '/setup';
-                }}
-                className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-              >
-                Change Credentials
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
+      <Navigation isAuthenticated={true} />
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-600">Total Assignments</p>
-                <p className="text-2xl font-semibold text-gray-900">{assignments.length}</p>
-              </div>
-              <BookOpen className="w-8 h-8 text-blue-500" />
-            </div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Assignments</h1>
+            <p className="text-gray-600">Welcome back, {user?.name}</p>
           </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-600">Upcoming</p>
-                <p className="text-2xl font-semibold text-green-600">{upcomingCount}</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('canvasToken');
+              localStorage.removeItem('canvasUrl');
+              window.location.href = '/setup';
+            }}
+            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+          >
+            Change Credentials
+          </button>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-4 mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-8">
+              <div className="flex items-center space-x-2">
+                <BookOpen className="w-5 h-5 text-blue-500" />
+                <span className="text-sm font-medium text-gray-600">Total:</span>
+                <span className="text-lg font-semibold text-gray-900">{assignments.length}</span>
               </div>
-              <CheckCircle className="w-8 h-8 text-green-500" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-600">Overdue</p>
-                <p className="text-2xl font-semibold text-red-600">{overdueCount}</p>
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span className="text-sm font-medium text-gray-600">Upcoming:</span>
+                <span className="text-lg font-semibold text-green-600">{upcomingCount}</span>
               </div>
-              <AlertCircle className="w-8 h-8 text-red-500" />
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <span className="text-sm font-medium text-gray-600">Overdue:</span>
+                <span className="text-lg font-semibold text-red-600">{overdueCount}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-gray-500" />
+                <span className="text-sm font-medium text-gray-600">No Due Date:</span>
+                <span className="text-lg font-semibold text-gray-600">{assignments.filter(a => !a.due_at).length}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -481,6 +590,20 @@ function MainApp() {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
               
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select 
+                  value={statusFilter} 
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'upcoming' | 'overdue' | 'no-date')}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="no-date">No Due Date</option>
+                </select>
+              </div>
+
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
                 <select 
@@ -496,8 +619,12 @@ function MainApp() {
                   ))}
                 </select>
               </div>
+            </div>
 
-              <div className="mb-6">
+            <div className="bg-white rounded-lg shadow p-6 mt-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Sort</h2>
+              
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
                 <div className="space-y-2">
                   <label className="flex items-center">
@@ -521,82 +648,102 @@ function MainApp() {
                 </div>
               </div>
 
-              <div className="mb-6">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={showPastDue}
-                    onChange={(e) => setShowPastDue(e.target.checked)}
-                    className="mr-2"
-                  />
-                  <span className="text-sm text-gray-700">Show overdue assignments</span>
-                </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      checked={sortOrder === 'asc'}
+                      onChange={() => setSortOrder('asc')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Increasing (A→Z, 1→9)</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      checked={sortOrder === 'desc'}
+                      onChange={() => setSortOrder('desc')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Decreasing (Z→A, 9→1)</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="flex-1">
             <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Assignments ({filteredAssignments.length})
-                </h2>
-              </div>
-              
-              <div className="divide-y">
-                {filteredAssignments.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-gray-500">
-                    <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No assignments found</p>
-                  </div>
-                ) : (
-                  filteredAssignments.map(assignment => (
-                    <div key={assignment.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="text-base font-medium text-gray-900 mb-1">
-                            {assignment.name}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-2">{assignment.course_name}</p>
-                          <div className="flex items-center space-x-4 text-sm">
-                            <span className={`flex items-center ${getDateColor(assignment.due_at)}`}>
-                              <Clock className="w-4 h-4 mr-1" />
-                              {formatDate(assignment.due_at)}
-                            </span>
-                            {assignment.points_possible && (
-                              <span className="text-gray-500">
-                                {assignment.points_possible} points
-                              </span>
-                            )}
+                <div className="px-6 py-4 border-b flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Assignments ({filteredAssignments.length})
+                  </h2>
+                  {selectedAssignments.size > 0 && (
+                    <button
+                      onClick={addSelectedToGoogleCalendar}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      <Calendar className="w-4 h-4 mr-2" />
+                      Add {selectedAssignments.size} to Calendar
+                    </button>
+                  )}
+                </div>
+                
+                <div className="divide-y">
+                  {filteredAssignments.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-gray-500">
+                      <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>No assignments found</p>
+                    </div>
+                  ) : (
+                    filteredAssignments.map(assignment => (
+                      <div key={assignment.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start flex-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedAssignments.has(assignment.id)}
+                              onChange={() => toggleAssignmentSelection(assignment.id)}
+                              className="mr-3 mt-1"
+                            />
+                            <div className="flex-1">
+                              <h3 className="text-base font-medium text-gray-900 mb-1">
+                                {assignment.name}
+                              </h3>
+                              <p className="text-sm text-gray-600 mb-2">{assignment.course_name}</p>
+                              <div className="flex items-center space-x-4 text-sm">
+                                <span className={`flex items-center ${getDateColor(assignment.due_at)}`}>
+                                  <Clock className="w-4 h-4 mr-1" />
+                                  {formatDate(assignment.due_at)}
+                                </span>
+                                {assignment.points_possible && (
+                                  <span className="text-gray-500">
+                                    {assignment.points_possible} points
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 ml-4">
+                            <a
+                              href={assignment.html_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-3 py-1 border border-transparent rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                              View in Canvas
+                              <ChevronRight className="w-4 h-4 ml-1" />
+                            </a>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2 ml-4">
-                          {assignment.due_at && (
-                            <button
-                              onClick={() => addToGoogleCalendar(assignment)}
-                              className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                              <Calendar className="w-4 h-4 mr-1" />
-                              Add to Calendar
-                            </button>
-                          )}
-                          <a
-                            href={assignment.html_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-3 py-1 border border-transparent rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                          >
-                            View in Canvas
-                            <ChevronRight className="w-4 h-4 ml-1" />
-                          </a>
-                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
@@ -604,12 +751,31 @@ function MainApp() {
 }
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('canvasToken'));
+
+  useEffect(() => {
+    const checkAuth = () => {
+      setIsAuthenticated(!!localStorage.getItem('canvasToken'));
+    };
+    checkAuth();
+    const interval = setInterval(checkAuth, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <Router>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/setup" element={<SetupPage />} />
-        <Route path="/app" element={<MainApp />} />
+        <Route path="/about" element={
+          <>
+            <Navigation isAuthenticated={isAuthenticated} />
+            <AboutPage />
+          </>
+        } />
+        <Route path="/assignments" element={
+          isAuthenticated ? <MainApp /> : <LandingPage />
+        } />
       </Routes>
     </Router>
   );
