@@ -166,17 +166,18 @@ function AboutPage() {
                This tool is perfect for students who want to stay organized and never miss a deadline, completely free and open-source.
             </p>
             
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">How it works</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">How does it work?</h2>
             <p className="text-gray-600 mb-6">
-              CAS conneects to your Canvas account using an API token provided by the user along with a link to the students university canvas. It fetches all assignments across all courses and displays them in a user-friendly interface.
-              Users can then select which assignment deadlines to add to their Google Calendar with a single click. The application does not store any user data or credentials, ensuring user privacy. 
-
-              
+              CAS connects to your Canvas account using an API token provided by the user along with a link to the students university canvas. It fetches all assignments across all courses and displays them in a user-friendly interface.
+              Users can then select which assignment deadlines to add to their Google Calendar with a single click.
+              All data is stored in the user's browser and is never sent to any third-party services, ensuring user privacy.
             </p>
             
             <h2 className="text-xl font-semibold text-gray-900 mb-4">About the Developer</h2>
             <p className="text-gray-600 mb-6">
-              I am a technology enthusiast and student developer passionate about creating applications that solve real-world problems and enhance productivity. I built this tool to help students like myself to stay organized in an otherwise hectic academic environment. I am currently pursuing my bachelor's in computer science and always looking for new opportunities to learn and grow as a developer and a person. 
+              I am a technology enthusiast and student developer passionate about creating applications that solve real-world problems and enhance productivity.
+               I built this tool to help students like myself to stay organized in an otherwise hectic academic environment. I am currently pursuing my bachelor's 
+               in computer science and always looking for new opportunities to learn and grow as a developer. 
             </p>
             
             <div className="flex space-x-4">
