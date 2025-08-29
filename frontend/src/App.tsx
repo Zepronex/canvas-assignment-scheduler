@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, Clock, User, BookOpen, CheckCircle, AlertCircle, Filter, ChevronRight, ArrowRight, Info, Menu, X, Github, Linkedin, Home, FileText } from 'lucide-react';
+import { Calendar, Clock, BookOpen, CheckCircle, AlertCircle, Filter, ChevronRight, ArrowRight, Info, Github, Linkedin } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -34,13 +34,29 @@ function Navigation({ isAuthenticated }: { isAuthenticated: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Check if user actually has valid credentials (not just on authenticated page)
+  const hasValidCredentials = localStorage.getItem('canvasToken') && localStorage.getItem('canvasUrl');
+
   const menuItems = [
     { name: 'Home', path: '/' },
     { name: 'About', path: '/about' },
-    ...(isAuthenticated ? [{ name: 'Assignments', path: '/assignments' }] : [])
+    ...(hasValidCredentials ? [{ name: 'Assignments', path: '/assignments' }] : [])
   ];
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogOut = () => {
+    if (window.confirm('Are you sure you want to log out? This will clear your Canvas credentials.')) {
+      localStorage.removeItem('canvasToken');
+      localStorage.removeItem('canvasUrl');
+      localStorage.removeItem('lastActivity');
+      localStorage.removeItem('cachedAssignments');
+      localStorage.removeItem('cachedCourses');
+      localStorage.removeItem('cachedUser');
+      localStorage.removeItem('cacheTimestamp');
+      window.location.href = '/';
+    }
+  };
 
   return (
     <nav className="bg-white shadow-sm border-b">
@@ -66,6 +82,14 @@ function Navigation({ isAuthenticated }: { isAuthenticated: boolean }) {
                 {item.name}
               </button>
             ))}
+            {hasValidCredentials && (
+              <button
+                onClick={handleLogOut}
+                className="text-base font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Log Out
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -321,8 +345,33 @@ function MainApp() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedAssignments, setSelectedAssignments] = useState<Set<number>>(new Set());
 
+  // Check if we have cached data
+  const checkCachedData = () => {
+    const cachedUser = localStorage.getItem('cachedUser');
+    const cachedCourses = localStorage.getItem('cachedCourses');
+    const cachedAssignments = localStorage.getItem('cachedAssignments');
+    const cacheTimestamp = localStorage.getItem('cacheTimestamp');
+    
+    if (cachedUser && cachedCourses && cachedAssignments && cacheTimestamp) {
+      const cacheAge = Date.now() - parseInt(cacheTimestamp);
+      const cacheValid = cacheAge < 30 * 60 * 1000; // 30 minutes
+      
+      if (cacheValid) {
+        setUser(JSON.parse(cachedUser));
+        setCourses(JSON.parse(cachedCourses));
+        setAssignments(JSON.parse(cachedAssignments));
+        setLoading(false);
+        return true;
+      }
+    }
+    return false;
+  };
+
   useEffect(() => {
-    fetchData();
+    // Try to load from cache first
+    if (!checkCachedData()) {
+      fetchData();
+    }
   }, []);
 
   const fetchData = async () => {
@@ -376,6 +425,12 @@ function MainApp() {
       setUser(userData);
       setCourses(coursesData);
       setAssignments(assignmentsData);
+
+      // Cache the data
+      localStorage.setItem('cachedUser', JSON.stringify(userData));
+      localStorage.setItem('cachedCourses', JSON.stringify(coursesData));
+      localStorage.setItem('cachedAssignments', JSON.stringify(assignmentsData));
+      localStorage.setItem('cacheTimestamp', Date.now().toString());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -435,6 +490,7 @@ function MainApp() {
     const diffTime = date.getTime() - now.getTime();
     const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffWeeks = Math.floor(diffDays / 7);
     
     if (diffDays < 0) return `${Math.abs(diffDays)} days overdue`;
     if (diffDays === 0) {
@@ -444,11 +500,8 @@ function MainApp() {
       return `Due in ${diffHours} hours`;
     }
     if (diffDays === 1) return 'Due tomorrow';
-    if (diffDays <= 2) {
-      // For deadlines within 48 hours, show hours
-      if (diffHours < 48) return `Due in ${diffHours} hours`;
-    }
-    if (diffDays <= 7) return `Due in ${diffDays} days`;
+    if (diffDays < 7) return `Due in ${diffDays} days`;
+    if (diffWeeks < 4) return `Due in ${diffWeeks} week${diffWeeks !== 1 ? 's' : ''}`;
     
     return date.toLocaleDateString('en-US', { 
       month: 'short', 
@@ -539,23 +592,18 @@ function MainApp() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation isAuthenticated={true} />
-      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Assignments</h1>
             <p className="text-gray-600">Welcome back, {user?.name}</p>
           </div>
           <button
-            onClick={() => {
-              localStorage.removeItem('canvasToken');
-              localStorage.removeItem('canvasUrl');
-              window.location.href = '/setup';
-            }}
-            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+            onClick={fetchData}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
-            Change Credentials
+            <Calendar className="w-4 h-4 mr-2" />
+            Refresh Data
           </button>
         </div>
         
@@ -763,19 +811,76 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Session timeout management
+  useEffect(() => {
+    const checkSessionTimeout = () => {
+      const lastActivity = localStorage.getItem('lastActivity');
+      if (lastActivity) {
+        const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+        const thirtyMinutes = 30 * 60 * 1000; // 30 minutes in milliseconds
+        
+        if (timeSinceLastActivity > thirtyMinutes) {
+          // Session expired, log out user
+          localStorage.removeItem('canvasToken');
+          localStorage.removeItem('canvasUrl');
+          localStorage.removeItem('lastActivity');
+          localStorage.removeItem('cachedAssignments');
+          localStorage.removeItem('cachedCourses');
+          localStorage.removeItem('cachedUser');
+          localStorage.removeItem('cacheTimestamp');
+          window.location.href = '/';
+        }
+      }
+    };
+
+    // Update last activity on user interaction
+    const updateLastActivity = () => {
+      localStorage.setItem('lastActivity', Date.now().toString());
+    };
+
+    // Check session timeout every minute
+    const sessionInterval = setInterval(checkSessionTimeout, 60000);
+    
+    // Update last activity on user interactions
+    document.addEventListener('click', updateLastActivity);
+    document.addEventListener('keypress', updateLastActivity);
+    document.addEventListener('scroll', updateLastActivity);
+
+    // Set initial last activity
+    if (localStorage.getItem('canvasToken')) {
+      updateLastActivity();
+    }
+
+    return () => {
+      clearInterval(sessionInterval);
+      document.removeEventListener('click', updateLastActivity);
+      document.removeEventListener('keypress', updateLastActivity);
+      document.removeEventListener('scroll', updateLastActivity);
+    };
+  }, []);
+
+  // Update page title based on current route
+  useEffect(() => {
+    const path = window.location.pathname;
+    let title = 'Canvas Assignment Scheduler';
+    
+    if (path === '/') title = 'Home - Canvas Assignment Scheduler';
+    else if (path === '/about') title = 'About - Canvas Assignment Scheduler';
+    else if (path === '/setup') title = 'Setup - Canvas Assignment Scheduler';
+    else if (path === '/assignments') title = 'Assignments - Canvas Assignment Scheduler';
+    
+    document.title = title;
+  }, []);
+
   return (
     <Router>
+      <Navigation isAuthenticated={isAuthenticated} />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/setup" element={<SetupPage />} />
-        <Route path="/about" element={
-          <>
-            <Navigation isAuthenticated={isAuthenticated} />
-            <AboutPage />
-          </>
-        } />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/assignments" element={
-          isAuthenticated ? <MainApp /> : <LandingPage />
+          isAuthenticated ? <MainApp /> : <SetupPage />
         } />
       </Routes>
     </Router>
