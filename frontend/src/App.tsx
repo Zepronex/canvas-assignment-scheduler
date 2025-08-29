@@ -84,7 +84,7 @@ function LandingPage() {
             Never Miss Another Canvas Assignment
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            A simple tool that helps you organize your Canvas assignments and schedule them in Google Calendar when you're ready. 
+            A simple tool that helps you keep track of your Canvas assignments deadlines and schedule them in Google Calendar when you're ready. 
             Take control of your deadlines and never lose track of your assignments again.
           </p>
           
@@ -137,26 +137,27 @@ function AboutPage() {
           <div className="prose max-w-none">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">What is this tool?</h2>
             <p className="text-gray-600 mb-6">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-              Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
-              Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+              Canvas Assignment Scheduler (CAS) is a web application designed to help students manage assignment deadlines from their Canvas. It allows users to 
+              view and sort them in one place and add them to Google Calendar in bulk. Users can filter assignments by course, due date status and sort them by date or course name. 
+               This tool is perfect for students who want to stay organized and never miss a deadline, completely free and open-source.
             </p>
             
             <h2 className="text-xl font-semibold text-gray-900 mb-4">How it works</h2>
             <p className="text-gray-600 mb-6">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-              Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+              CAS conneects to your Canvas account using an API token provided by the user along with a link to the students university canvas. It fetches all assignments across all courses and displays them in a user-friendly interface.
+              Users can then select which assignment deadlines to add to their Google Calendar with a single click. The application does not store any user data or credentials, ensuring user privacy. 
+
+              
             </p>
             
             <h2 className="text-xl font-semibold text-gray-900 mb-4">About the Developer</h2>
             <p className="text-gray-600 mb-6">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-              Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+              I am a technology enthusiast and student developer passionate about creating applications that solve real-world problems and enhance productivity. I built this tool to help students like myself to stay organized in an otherwise hectic academic environment. I am currently pursuing my bachelor's in computer science and always looking for new opportunities to learn and grow as a developer and a person. 
             </p>
             
             <div className="flex space-x-4">
               <a
-                href="https://github.com/yourusername"
+                href="https://github.com/Zepronex"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
@@ -165,7 +166,7 @@ function AboutPage() {
                 GitHub
               </a>
               <a
-                href="https://linkedin.com/in/yourusername"
+                href="https://www.linkedin.com/in/carl-fredrik-svensson/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
