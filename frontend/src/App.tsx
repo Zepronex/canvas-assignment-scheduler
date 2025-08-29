@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, BookOpen, CheckCircle, AlertCircle, Filter, ChevronRight } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { Calendar, Clock, User, BookOpen, CheckCircle, AlertCircle, Filter, ChevronRight, ArrowRight, Info } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -29,7 +30,216 @@ interface UserInfo {
   login_id: string;
 }
 
-export default function App() {
+function LandingPage() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <BookOpen className="w-8 h-8 text-blue-600 mr-3" />
+              <h1 className="text-xl font-semibold text-gray-900">Canvas Assignment Scheduler</h1>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-6">
+            Never Miss Another Canvas Assignment
+          </h1>
+          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            A simple tool that checks your upcoming Canvas deadlines and lets you schedule them in Google Calendar with just one click. 
+            Stay organized and never lose track of your assignments again.
+          </p>
+          
+          <button
+            onClick={() => navigate('/setup')}
+            className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
+          >
+            Get Started
+            <ArrowRight className="ml-2 w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="bg-white rounded-lg p-6 shadow-md">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+              <Calendar className="w-6 h-6 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Automatic Sync</h3>
+            <p className="text-gray-600">Connect your Canvas account and automatically fetch all your upcoming assignments across all courses.</p>
+          </div>
+          
+          <div className="bg-white rounded-lg p-6 shadow-md">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">One-Click Scheduling</h3>
+            <p className="text-gray-600">Add any assignment to your Google Calendar with a single click, complete with course details and Canvas links.</p>
+          </div>
+          
+          <div className="bg-white rounded-lg p-6 shadow-md">
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+              <Filter className="w-6 h-6 text-purple-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Smart Organization</h3>
+            <p className="text-gray-600">Filter by course, sort by due date, and get visual indicators for urgent assignments and overdue work.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SetupPage() {
+  const navigate = useNavigate();
+  const [canvasToken, setCanvasToken] = useState('');
+  const [canvasUrl, setCanvasUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canvasToken.trim() || !canvasUrl.trim()) {
+      setError('Please provide both Canvas token and URL');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const validateResponse = await fetch(`${API_BASE}/validate-credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          canvas_url: canvasUrl,
+          canvas_token: canvasToken
+        })
+      });
+
+      const validateData = await validateResponse.json();
+
+      if (!validateData.valid) {
+        setError(validateData.error || 'Invalid credentials. Please check your Canvas URL and API token.');
+        return;
+      }
+
+      localStorage.setItem('canvasToken', canvasToken);
+      localStorage.setItem('canvasUrl', canvasUrl);
+      
+      navigate('/app');
+    } catch (err) {
+      setError('Failed to validate credentials. Please check your connection and try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <BookOpen className="w-8 h-8 text-blue-600 mr-3" />
+              <h1 className="text-xl font-semibold text-gray-900">Canvas Assignment Scheduler</h1>
+            </div>
+            <button
+              onClick={() => navigate('/')}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Connect Your Canvas Account</h2>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Canvas URL
+              </label>
+              <input
+                type="url"
+                value={canvasUrl}
+                onChange={(e) => setCanvasUrl(e.target.value)}
+                placeholder="https://your-university.instructure.com"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Enter your university's Canvas URL (e.g., https://your-university.instructure.com)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Canvas API Token
+              </label>
+              <input
+                type="password"
+                value={canvasToken}
+                onChange={(e) => setCanvasToken(e.target.value)}
+                placeholder="Enter your Canvas API token"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              
+              <div className="mt-3 p-4 bg-blue-50 rounded-md">
+                <div className="flex items-start">
+                  <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-2">How to get your Canvas API token:</p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Log into your Canvas account</li>
+                      <li>Go to <strong>Account</strong> → <strong>Settings</strong></li>
+                      <li>Scroll down to <strong>Approved Integrations</strong></li>
+                      <li>Click <strong>New Access Token</strong></li>
+                      <li>Give it a name (e.g., "Assignment Scheduler")</li>
+                      <li>Set expiration to <strong>Never</strong> or choose a date</li>
+                      <li>Click <strong>Generate Token</strong></li>
+                      <li>Copy the token and paste it above</li>
+                    </ol>
+                    <p className="mt-2 text-xs">
+                      <strong>Note:</strong> Keep this token secure and don't share it with others.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Connecting...' : 'Connect to Canvas'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MainApp() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -46,10 +256,41 @@ export default function App() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      
+      const canvasToken = localStorage.getItem('canvasToken');
+      const canvasUrl = localStorage.getItem('canvasUrl');
+      
+      if (!canvasToken || !canvasUrl) {
+        throw new Error('No credentials found. Please go back to setup.');
+      }
+
+      const credentials = {
+        canvas_url: canvasUrl,
+        canvas_token: canvasToken
+      };
+
       const [userRes, coursesRes, assignmentsRes] = await Promise.all([
-        fetch(`${API_BASE}/user`),
-        fetch(`${API_BASE}/courses`),
-        fetch(`${API_BASE}/assignments`)
+        fetch(`${API_BASE}/user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(credentials)
+        }),
+        fetch(`${API_BASE}/courses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(credentials)
+        }),
+        fetch(`${API_BASE}/assignments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(credentials)
+        })
       ]);
 
       if (!userRes.ok || !coursesRes.ok || !assignmentsRes.ok) {
@@ -61,8 +302,8 @@ export default function App() {
       const assignmentsData = await assignmentsRes.json();
 
       setUser(userData);
-      setCourses(coursesData.courses); // Note: accessing .courses property
-      setAssignments(assignmentsData.assignments); // Note: accessing .assignments property
+      setCourses(coursesData);
+      setAssignments(assignmentsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -130,7 +371,7 @@ export default function App() {
     if (!assignment.due_at) return;
     
     const date = new Date(assignment.due_at);
-    const endDate = new Date(date.getTime() + 60 * 60 * 1000); // 1 hour duration
+    const endDate = new Date(date.getTime() + 60 * 60 * 1000);
     
     const formatDate = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
     
@@ -176,7 +417,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -190,13 +430,22 @@ export default function App() {
                 <p className="text-sm font-medium text-gray-900">{user?.name}</p>
               </div>
               <User className="w-8 h-8 text-gray-400" />
+              <button
+                onClick={() => {
+                  localStorage.removeItem('canvasToken');
+                  localStorage.removeItem('canvasUrl');
+                  window.location.href = '/setup';
+                }}
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+              >
+                Change Credentials
+              </button>
             </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
@@ -228,12 +477,10 @@ export default function App() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
           <div className="lg:w-80">
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
               
-              {/* Course Filter */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
                 <select 
@@ -250,7 +497,6 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Sort Options */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
                 <div className="space-y-2">
@@ -275,7 +521,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Show Past Due Toggle */}
               <div className="mb-6">
                 <label className="flex items-center">
                   <input
@@ -290,7 +535,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Main Content */}
           <div className="flex-1">
             <div className="bg-white rounded-lg shadow">
               <div className="px-6 py-4 border-b">
@@ -356,5 +600,17 @@ export default function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/setup" element={<SetupPage />} />
+        <Route path="/app" element={<MainApp />} />
+      </Routes>
+    </Router>
   );
 }
