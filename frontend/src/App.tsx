@@ -58,6 +58,10 @@ function Navigation({ isAuthenticated }: { isAuthenticated: boolean }) {
     }
   };
 
+  const handleLogIn = () => {
+    window.location.href = '/setup';
+  };
+
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -82,12 +86,19 @@ function Navigation({ isAuthenticated }: { isAuthenticated: boolean }) {
                 {item.name}
               </button>
             ))}
-            {hasValidCredentials && (
+            {hasValidCredentials ? (
               <button
                 onClick={handleLogOut}
                 className="text-base font-medium text-gray-600 hover:text-gray-900 transition-colors"
               >
                 Log Out
+              </button>
+            ) : (
+              <button
+                onClick={handleLogIn}
+                className="text-base font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Log In
               </button>
             )}
           </div>
@@ -111,14 +122,6 @@ function LandingPage() {
             A simple tool that helps you keep track of your Canvas assignments deadlines and schedule them in Google Calendar when you're ready. 
             Take control of your deadlines and never lose track of your assignments again.
           </p>
-          
-          <button
-            onClick={() => navigate('/setup')}
-            className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
-          >
-            Get Started
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </button>
         </div>
 
         <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -523,6 +526,23 @@ function MainApp() {
     return 'text-green-600';
   };
 
+  const getFilterDisplayText = () => {
+    const courseText = selectedCourse ? ` in ${courses.find(c => c.id === selectedCourse)?.name || 'Selected Course'}` : '';
+    
+    switch (statusFilter) {
+      case 'all':
+        return `All Assignments${courseText}`;
+      case 'upcoming':
+        return `Upcoming Assignments${courseText}`;
+      case 'overdue':
+        return `Overdue Assignments${courseText}`;
+      case 'no-date':
+        return `Assignments with No Due Date${courseText}`;
+      default:
+        return `Assignments${courseText}`;
+    }
+  };
+
   const toggleAssignmentSelection = (assignmentId: number) => {
     const newSelected = new Set(selectedAssignments);
     if (newSelected.has(assignmentId)) {
@@ -601,37 +621,37 @@ function MainApp() {
           </div>
           <button
             onClick={fetchData}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
           >
-            <Calendar className="w-4 h-4 mr-2" />
-            Refresh Data
+            <Calendar className="w-5 h-5 mr-3" />
+            <span className="font-semibold text-base">Refresh Data</span>
           </button>
         </div>
         
         <div className="bg-white rounded-lg shadow p-4 mb-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <BookOpen className="w-5 h-5 text-blue-500" />
-                <span className="text-sm font-medium text-gray-600">Total:</span>
-                <span className="text-lg font-semibold text-gray-900">{assignments.length}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                <span className="text-sm font-medium text-gray-600">Upcoming:</span>
-                <span className="text-lg font-semibold text-green-600">{upcomingCount}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="w-5 h-5 text-red-500" />
-                <span className="text-sm font-medium text-gray-600">Overdue:</span>
-                <span className="text-lg font-semibold text-red-600">{overdueCount}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Clock className="w-5 h-5 text-gray-500" />
-                <span className="text-sm font-medium text-gray-600">No Due Date:</span>
-                <span className="text-lg font-semibold text-gray-600">{assignments.filter(a => !a.due_at).length}</span>
-              </div>
-            </div>
+                         <div className="flex items-center space-x-12">
+               <div className="flex items-center space-x-3">
+                 <BookOpen className="w-5 h-5 text-blue-500" />
+                 <span className="text-sm font-medium text-gray-600">Total:</span>
+                 <span className="text-lg font-semibold text-gray-900">{assignments.length}</span>
+               </div>
+               <div className="flex items-center space-x-3">
+                 <CheckCircle className="w-5 h-5 text-green-500" />
+                 <span className="text-sm font-medium text-gray-600">Upcoming:</span>
+                 <span className="text-lg font-semibold text-green-600">{upcomingCount}</span>
+               </div>
+               <div className="flex items-center space-x-3">
+                 <AlertCircle className="w-5 h-5 text-red-500" />
+                 <span className="text-sm font-medium text-gray-600">Overdue:</span>
+                 <span className="text-lg font-semibold text-red-600">{overdueCount}</span>
+               </div>
+               <div className="flex items-center space-x-3">
+                 <Clock className="w-5 h-5 text-gray-500" />
+                 <span className="text-sm font-medium text-gray-600">No Due Date:</span>
+                 <span className="text-lg font-semibold text-gray-600">{assignments.filter(a => !a.due_at).length}</span>
+               </div>
+             </div>
           </div>
         </div>
 
