@@ -1,17 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import requests
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
-# Load environment variables
 load_dotenv()
 
 app = FastAPI()
 
-# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -20,24 +19,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Canvas API configuration
-CANVAS_API_TOKEN = os.getenv("CANVAS_API_TOKEN")
-CANVAS_BASE_URL = os.getenv("CANVAS_BASE_URL", "https://his.instructure.com")
-HEADERS = {
-    "Authorization": f"Bearer {CANVAS_API_TOKEN}"
-}
+class CanvasCredentials(BaseModel):
+    canvas_url: str
+    canvas_token: str
 
 @app.get("/")
 def read_root():
     return {"message": "Canvas Assignment Manager API"}
 
-@app.get("/api/user")
-def get_user():
-    """Get current user information"""
+@app.post("/api/validate-credentials")
+def validate_credentials(credentials: CanvasCredentials):
     try:
+        headers = {
+            "Authorization": f"Bearer {credentials.canvas_token}"
+        }
+        
         response = requests.get(
-            f"{CANVAS_BASE_URL}/api/v1/users/self",
-            headers=HEADERS
+            f"{credentials.canvas_url}/api/v1/users/self",
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            user_data = response.json()
+            return {
+                "valid": True,
+                "user": {
+                    "id": user_data.get("id"),
+                    "name": user_data.get("name"),
+                    "email": user_data.get("primary_email")
+                }
+            }
+        else:
+            return {"valid": False, "error": "Invalid credentials"}
+            
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/user")
+def get_user(credentials: CanvasCredentials):
+    try:
+        headers = {
+            "Authorization": f"Bearer {credentials.canvas_token}"
+        }
+        
+        response = requests.get(
+            f"{credentials.canvas_url}/api/v1/users/self",
+            headers=headers
         )
         response.raise_for_status()
         user_data = response.json()
@@ -49,13 +76,16 @@ def get_user():
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/courses")
-def get_courses():
-    """Get all active courses for the user"""
+@app.post("/api/courses")
+def get_courses(credentials: CanvasCredentials):
     try:
+        headers = {
+            "Authorization": f"Bearer {credentials.canvas_token}"
+        }
+        
         response = requests.get(
-            f"{CANVAS_BASE_URL}/api/v1/courses",
-            headers=HEADERS,
+            f"{credentials.canvas_url}/api/v1/courses",
+            headers=headers,
             params={
                 "enrollment_state": "active",
                 "per_page": 100
@@ -75,19 +105,34 @@ def get_courses():
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/assignments")
-def get_all_assignments():
-    """Get all assignments across all courses"""
+@app.post("/api/assignments")
+def get_all_assignments(credentials: CanvasCredentials):
     try:
-        # First get all courses
-        courses = get_courses()
+        headers = {
+            "Authorization": f"Bearer {credentials.canvas_token}"
+        }
+        
+        courses_response = requests.get(
+            f"{credentials.canvas_url}/api/v1/courses",
+            headers=headers,
+            params={
+                "enrollment_state": "active",
+                "per_page": 100
+            }
+        )
+        courses_response.raise_for_status()
+        courses = courses_response.json()
+        
         all_assignments = []
         
         for course in courses:
+            if course.get("access_restricted_by_date"):
+                continue
+                
             course_id = course["id"]
             response = requests.get(
-                f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/assignments",
-                headers=HEADERS,
+                f"{credentials.canvas_url}/api/v1/courses/{course_id}/assignments",
+                headers=headers,
                 params={
                     "per_page": 100,
                     "order_by": "due_at"
@@ -97,7 +142,7 @@ def get_all_assignments():
             if response.status_code == 200:
                 assignments = response.json()
                 for assignment in assignments:
-                    if not assignment.get("is_quiz_assignment"):  # Skip quiz assignments
+                    if not assignment.get("is_quiz_assignment"):
                         all_assignments.append({
                             "id": assignment.get("id"),
                             "name": assignment.get("name"),
@@ -112,13 +157,16 @@ def get_all_assignments():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/assignments/{course_id}")
-def get_course_assignments(course_id: int):
-    """Get assignments for a specific course"""
+@app.post("/api/assignments/{course_id}")
+def get_course_assignments(course_id: int, credentials: CanvasCredentials):
     try:
+        headers = {
+            "Authorization": f"Bearer {credentials.canvas_token}"
+        }
+        
         response = requests.get(
-            f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/assignments",
-            headers=HEADERS,
+            f"{credentials.canvas_url}/api/v1/courses/{course_id}/assignments",
+            headers=headers,
             params={
                 "per_page": 100,
                 "order_by": "due_at"
