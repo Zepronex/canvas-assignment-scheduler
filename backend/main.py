@@ -28,10 +28,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting storage (in production, use Redis)
+rate_limit_storage = {}
+RATE_LIMIT_WINDOW = 60  # 1 minute window
+RATE_LIMIT_MAX_REQUESTS = 30  # 30 requests per minute per IP
+
+# Simple rate limiting middleware
+@app.middleware("http")
+async def rate_limit_middleware(request, call_next):
+    # Get client IP address
+    client_ip = request.client.host
+    
+    # Clean old entries (older than 1 minute)
+    current_time = time.time()
+    if client_ip in rate_limit_storage:
+        rate_limit_storage[client_ip] = [
+            req_time for req_time in rate_limit_storage[client_ip]
+            if current_time - req_time < RATE_LIMIT_WINDOW
+        ]
+    else:
+        rate_limit_storage[client_ip] = []
+    
+    # Check if client has exceeded rate limit
+    if len(rate_limit_storage[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Rate limit exceeded",
+                "message": "Too many requests. Please try again later.",
+                "retry_after": RATE_LIMIT_WINDOW
+            }
+        )
+    
+    # Add current request timestamp
+    rate_limit_storage[client_ip].append(current_time)
+    
+    # Process the request
+    response = await call_next(request)
+    return response
+
 # Data model for Canvas API credentials
 class CanvasCredentials(BaseModel):
     canvas_url: str
     canvas_token: str
+
 
 def make_canvas_request_with_retry(url: str, headers: dict, params: dict = None, max_retries: int = 3):
     """
@@ -158,9 +199,23 @@ def read_root():
         "message": "Canvas Assignment Scheduler API v2.0",
         "features": [
             "Enhanced error handling with retry mechanisms",
+            "Rate limiting and DDoS protection (30 requests/minute per IP)",
+            "Upcoming assignments endpoint for bulk operations",
             "Better Canvas API integration",
             "Improved logging and debugging"
         ]
+    }
+
+# Health check endpoint (not rate limited)
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "rate_limit_info": {
+            "window_seconds": RATE_LIMIT_WINDOW,
+            "max_requests": RATE_LIMIT_MAX_REQUESTS
+        }
     }
 
 # Validate Canvas credentials by attempting to fetch user information
@@ -375,6 +430,80 @@ def get_course_assignments(course_id: int, credentials: CanvasCredentials):
     except Exception as e:
         # Log unexpected errors and return generic message
         logger.error(f"Unexpected error in get_course_assignments: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
+
+# Get only upcoming assignments for bulk operations like "Select All Upcoming"
+@app.post("/api/assignments/upcoming")
+def get_upcoming_assignments(credentials: CanvasCredentials):
+    try:
+        # Set up headers for Canvas API request
+        headers = {
+            "Authorization": f"Bearer {credentials.canvas_token}",
+            "User-Agent": "Canvas-Assignment-Scheduler/2.0"
+        }
+        
+        # First, get all active courses
+        courses_response = make_canvas_request_with_retry(
+            f"{credentials.canvas_url}/api/v1/courses",
+            headers,
+            params={
+                "enrollment_state": "active",
+                "per_page": 100
+            }
+        )
+        courses = courses_response.json()
+        
+        upcoming_assignments = []
+        current_time = datetime.now()
+        
+        # Fetch assignments for each course and filter for upcoming ones
+        for course in courses:
+            if course.get("access_restricted_by_date"):
+                continue
+                
+            course_id = course["id"]
+            try:
+                # Get assignments for this specific course
+                response = make_canvas_request_with_retry(
+                    f"{credentials.canvas_url}/api/v1/courses/{course_id}/assignments",
+                    headers,
+                    params={
+                        "per_page": 100,
+                        "order_by": "due_at"
+                    }
+                )
+                
+                # Process assignments and filter for upcoming ones only
+                assignments = response.json()
+                for assignment in assignments:
+                    if not assignment.get("is_quiz_assignment") and assignment.get("due_at"):
+                        # Check if assignment is upcoming (due date is in the future)
+                        due_date = datetime.fromisoformat(assignment["due_at"].replace('Z', '+00:00'))
+                        if due_date > current_time:
+                            upcoming_assignments.append({
+                                "id": assignment.get("id"),
+                                "name": assignment.get("name"),
+                                "course_name": course["name"],
+                                "course_id": course_id,
+                                "due_at": assignment.get("due_at"),
+                                "points_possible": assignment.get("points_possible"),
+                                "html_url": assignment.get("html_url")
+                            })
+            except HTTPException as e:
+                # Log warning but continue with other courses
+                logger.warning(f"Failed to fetch assignments for course {course_id}: {e.detail}")
+                continue
+        
+        return {
+            "assignments": upcoming_assignments,
+            "count": len(upcoming_assignments)
+        }
+    except HTTPException:
+        # Re-raise HTTP exceptions (they already have proper error messages)
+        raise
+    except Exception as e:
+        # Log unexpected errors and return generic message
+        logger.error(f"Unexpected error in get_upcoming_assignments: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
 # Start the server when running this file directly

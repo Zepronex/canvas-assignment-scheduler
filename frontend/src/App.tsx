@@ -341,13 +341,50 @@ function MainApp() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<number | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<number | null>(() => {
+    const saved = localStorage.getItem('selectedCourse');
+    return saved ? parseInt(saved) : null;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'date' | 'course'>('date');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'overdue' | 'no-date'>('upcoming');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy, setSortBy] = useState<'date' | 'course'>(() => {
+    const saved = localStorage.getItem('sortBy');
+    return (saved as 'date' | 'course') || 'date';
+  });
+  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'overdue' | 'no-date'>(() => {
+    const saved = localStorage.getItem('statusFilter');
+    return (saved as 'all' | 'upcoming' | 'overdue' | 'no-date') || 'upcoming';
+  });
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => {
+    const saved = localStorage.getItem('sortOrder');
+    return (saved as 'asc' | 'desc') || 'asc';
+  });
   const [selectedAssignments, setSelectedAssignments] = useState<Set<number>>(new Set());
+
+  // Functions to save filter state to localStorage
+  const updateSortBy = (newSortBy: 'date' | 'course') => {
+    setSortBy(newSortBy);
+    localStorage.setItem('sortBy', newSortBy);
+  };
+
+  const updateStatusFilter = (newStatusFilter: 'all' | 'upcoming' | 'overdue' | 'no-date') => {
+    setStatusFilter(newStatusFilter);
+    localStorage.setItem('statusFilter', newStatusFilter);
+  };
+
+  const updateSortOrder = (newSortOrder: 'asc' | 'desc') => {
+    setSortOrder(newSortOrder);
+    localStorage.setItem('sortOrder', newSortOrder);
+  };
+
+  const updateSelectedCourse = (newSelectedCourse: number | null) => {
+    setSelectedCourse(newSelectedCourse);
+    if (newSelectedCourse) {
+      localStorage.setItem('selectedCourse', newSelectedCourse.toString());
+    } else {
+      localStorage.removeItem('selectedCourse');
+    }
+  };
 
   // Check if we have cached data
   const checkCachedData = () => {
@@ -553,6 +590,41 @@ function MainApp() {
     setSelectedAssignments(newSelected);
   };
 
+  const selectAllUpcoming = async () => {
+    try {
+      const canvasToken = localStorage.getItem('canvasToken');
+      const canvasUrl = localStorage.getItem('canvasUrl');
+      
+      if (!canvasToken || !canvasUrl) {
+        throw new Error('No credentials found');
+      }
+
+      const response = await fetch(`${API_BASE}/assignments/upcoming`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          canvas_url: canvasUrl,
+          canvas_token: canvasToken
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch upcoming assignments');
+      }
+
+      const data = await response.json();
+      const upcomingIds: Set<number> = new Set(data.assignments.map((a: Assignment) => a.id));
+      setSelectedAssignments(upcomingIds);
+      
+      // Show success message
+      alert(`Selected ${upcomingIds.size} upcoming assignments`);
+    } catch (err) {
+      alert('Failed to select upcoming assignments. Please try again.');
+    }
+  };
+
   const addSelectedToGoogleCalendar = () => {
     if (selectedAssignments.size === 0) return;
 
@@ -619,13 +691,22 @@ function MainApp() {
             <h1 className="text-2xl font-bold text-gray-900">Assignments</h1>
             <p className="text-gray-600">Welcome back, {user?.name}</p>
           </div>
-          <button
-            onClick={fetchData}
-            className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
-          >
-            <Calendar className="w-5 h-5 mr-3" />
-            <span className="font-semibold text-base">Refresh Data</span>
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={selectAllUpcoming}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg"
+            >
+              <CheckCircle className="w-5 h-5 mr-2" />
+              <span className="font-semibold text-sm">Select All Upcoming</span>
+            </button>
+            <button
+              onClick={fetchData}
+              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
+            >
+              <Calendar className="w-5 h-5 mr-3" />
+              <span className="font-semibold text-base">Refresh Data</span>
+            </button>
+          </div>
         </div>
         
         <div className="bg-white rounded-lg shadow p-4 mb-8">
@@ -664,7 +745,7 @@ function MainApp() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select 
                   value={statusFilter} 
-                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'upcoming' | 'overdue' | 'no-date')}
+                  onChange={(e) => updateStatusFilter(e.target.value as 'all' | 'upcoming' | 'overdue' | 'no-date')}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All</option>
@@ -678,7 +759,7 @@ function MainApp() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
                 <select 
                   value={selectedCourse || ''} 
-                  onChange={(e) => setSelectedCourse(e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) => updateSelectedCourse(e.target.value ? Number(e.target.value) : null)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Courses</option>
@@ -701,7 +782,7 @@ function MainApp() {
                     <input
                       type="radio"
                       checked={sortBy === 'date'}
-                      onChange={() => setSortBy('date')}
+                      onChange={() => updateSortBy('date')}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-700">Due Date</span>
@@ -710,7 +791,7 @@ function MainApp() {
                     <input
                       type="radio"
                       checked={sortBy === 'course'}
-                      onChange={() => setSortBy('course')}
+                      onChange={() => updateSortBy('course')}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-700">Course Name</span>
@@ -725,7 +806,7 @@ function MainApp() {
                     <input
                       type="radio"
                       checked={sortOrder === 'asc'}
-                      onChange={() => setSortOrder('asc')}
+                      onChange={() => updateSortOrder('asc')}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-700">Increasing (A→Z, 1→9)</span>
@@ -734,7 +815,7 @@ function MainApp() {
                   <input
                       type="radio"
                       checked={sortOrder === 'desc'}
-                      onChange={() => setSortOrder('desc')}
+                      onChange={() => updateSortOrder('desc')}
                     className="mr-2"
                   />
                     <span className="text-sm text-gray-700">Decreasing (Z→A, 9→1)</span>
