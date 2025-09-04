@@ -374,7 +374,7 @@ function MainApp() {
   useEffect(() => {
     // Try to load from cache first
     if (!checkCachedData()) {
-      fetchData();
+    fetchData();
     }
   }, []);
 
@@ -462,10 +462,10 @@ function MainApp() {
         });
         break;
       case 'overdue':
-        filtered = filtered.filter(a => {
+      filtered = filtered.filter(a => {
           if (!a.due_at) return false;
           return new Date(a.due_at) < now;
-        });
+      });
         break;
       case 'no-date':
         filtered = filtered.filter(a => !a.due_at);
@@ -559,23 +559,23 @@ function MainApp() {
     const selectedAssignmentsList = assignments.filter(a => selectedAssignments.has(a.id));
     
     selectedAssignmentsList.forEach((assignment, index) => {
-      if (!assignment.due_at) return;
-      
-      const date = new Date(assignment.due_at);
+    if (!assignment.due_at) return;
+    
+    const date = new Date(assignment.due_at);
       const endDate = new Date(date.getTime() + 60 * 60 * 1000);
-      
-      const formatDate = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
-      
-      const details = `Assignment: ${assignment.name}\nCourse: ${assignment.course_name}\nPoints: ${assignment.points_possible || 'N/A'}\nCanvas Link: ${assignment.html_url}`;
-      
-      const url = new URL('https://calendar.google.com/calendar/render');
-      url.searchParams.append('action', 'TEMPLATE');
-      url.searchParams.append('text', `${assignment.name} - ${assignment.course_name}`);
-      url.searchParams.append('dates', `${formatDate(date)}/${formatDate(endDate)}`);
-      url.searchParams.append('details', details);
-      
+    
+    const formatDate = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
+    
+    const details = `Assignment: ${assignment.name}\nCourse: ${assignment.course_name}\nPoints: ${assignment.points_possible || 'N/A'}\nCanvas Link: ${assignment.html_url}`;
+    
+    const url = new URL('https://calendar.google.com/calendar/render');
+    url.searchParams.append('action', 'TEMPLATE');
+    url.searchParams.append('text', `${assignment.name} - ${assignment.course_name}`);
+    url.searchParams.append('dates', `${formatDate(date)}/${formatDate(endDate)}`);
+    url.searchParams.append('details', details);
+    
       setTimeout(() => {
-        window.open(url.toString(), '_blank');
+    window.open(url.toString(), '_blank');
       }, index * 100);
     });
 
@@ -635,23 +635,23 @@ function MainApp() {
                  <BookOpen className="w-5 h-5 text-blue-500" />
                  <span className="text-sm font-medium text-gray-600">Total:</span>
                  <span className="text-lg font-semibold text-gray-900">{assignments.length}</span>
-               </div>
+              </div>
                <div className="flex items-center space-x-3">
                  <CheckCircle className="w-5 h-5 text-green-500" />
                  <span className="text-sm font-medium text-gray-600">Upcoming:</span>
                  <span className="text-lg font-semibold text-green-600">{upcomingCount}</span>
-               </div>
+            </div>
                <div className="flex items-center space-x-3">
                  <AlertCircle className="w-5 h-5 text-red-500" />
                  <span className="text-sm font-medium text-gray-600">Overdue:</span>
                  <span className="text-lg font-semibold text-red-600">{overdueCount}</span>
-               </div>
+          </div>
                <div className="flex items-center space-x-3">
                  <Clock className="w-5 h-5 text-gray-500" />
                  <span className="text-sm font-medium text-gray-600">No Due Date:</span>
                  <span className="text-lg font-semibold text-gray-600">{assignments.filter(a => !a.due_at).length}</span>
-               </div>
-             </div>
+            </div>
+            </div>
           </div>
         </div>
 
@@ -693,7 +693,7 @@ function MainApp() {
 
             <div className="bg-white rounded-lg shadow p-6 mt-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Sort</h2>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
                 <div className="space-y-2">
@@ -730,15 +730,15 @@ function MainApp() {
                     />
                     <span className="text-sm text-gray-700">Increasing (A→Z, 1→9)</span>
                   </label>
-                  <label className="flex items-center">
-                    <input
+                <label className="flex items-center">
+                  <input
                       type="radio"
                       checked={sortOrder === 'desc'}
                       onChange={() => setSortOrder('desc')}
-                      className="mr-2"
-                    />
+                    className="mr-2"
+                  />
                     <span className="text-sm text-gray-700">Decreasing (Z→A, 9→1)</span>
-                  </label>
+                </label>
                 </div>
               </div>
             </div>
@@ -747,9 +747,9 @@ function MainApp() {
           <div className="flex-1">
             <div className="bg-white rounded-lg shadow">
                 <div className="px-6 py-4 border-b flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Assignments ({filteredAssignments.length})
-                  </h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Assignments ({filteredAssignments.length})
+                </h2>
                   {selectedAssignments.size > 0 && (
                     <button
                       onClick={addSelectedToGoogleCalendar}
@@ -759,18 +759,18 @@ function MainApp() {
                       Add {selectedAssignments.size} to Calendar
                     </button>
                   )}
-                </div>
-                
-                <div className="divide-y">
-                  {filteredAssignments.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-gray-500">
-                      <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>No assignments found</p>
-                    </div>
-                  ) : (
-                    filteredAssignments.map(assignment => (
-                      <div key={assignment.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start justify-between">
+              </div>
+              
+              <div className="divide-y">
+                {filteredAssignments.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-gray-500">
+                    <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No assignments found</p>
+                  </div>
+                ) : (
+                  filteredAssignments.map(assignment => (
+                    <div key={assignment.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between">
                           <div className="flex items-start flex-1">
                             <input
                               type="checkbox"
@@ -778,42 +778,42 @@ function MainApp() {
                               onChange={() => toggleAssignmentSelection(assignment.id)}
                               className="mr-3 mt-1"
                             />
-                            <div className="flex-1">
-                              <h3 className="text-base font-medium text-gray-900 mb-1">
-                                {assignment.name}
-                              </h3>
-                              <p className="text-sm text-gray-600 mb-2">{assignment.course_name}</p>
-                              <div className="flex items-center space-x-4 text-sm">
-                                <span className={`flex items-center ${getDateColor(assignment.due_at)}`}>
-                                  <Clock className="w-4 h-4 mr-1" />
-                                  {formatDate(assignment.due_at)}
-                                </span>
-                                {assignment.points_possible && (
-                                  <span className="text-gray-500">
-                                    {assignment.points_possible} points
-                                  </span>
-                                )}
+                        <div className="flex-1">
+                          <h3 className="text-base font-medium text-gray-900 mb-1">
+                            {assignment.name}
+                          </h3>
+                          <p className="text-sm text-gray-600 mb-2">{assignment.course_name}</p>
+                          <div className="flex items-center space-x-4 text-sm">
+                            <span className={`flex items-center ${getDateColor(assignment.due_at)}`}>
+                              <Clock className="w-4 h-4 mr-1" />
+                              {formatDate(assignment.due_at)}
+                            </span>
+                            {assignment.points_possible && (
+                              <span className="text-gray-500">
+                                {assignment.points_possible} points
+                              </span>
+                            )}
                               </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2 ml-4">
-                            <a
-                              href={assignment.html_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center px-3 py-1 border border-transparent rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                              View in Canvas
-                              <ChevronRight className="w-4 h-4 ml-1" />
-                            </a>
                           </div>
                         </div>
+                        <div className="flex items-center space-x-2 ml-4">
+                          <a
+                            href={assignment.html_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1 border border-transparent rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            View in Canvas
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                          </a>
+                        </div>
                       </div>
-                    ))
-                  )}
-                </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
+          </div>
         </div>
       </div>
     </div>
