@@ -277,7 +277,7 @@ function SetupPage() {
                 required
               />
               <p className="mt-1 text-sm text-gray-500">
-                Enter your university's Canvas URL (e.g., https://your-university.instructure.com)
+                Enter your university's Canvas URL (e.g. link to your canvas page, for example https://canvas.cityu.edu.hk or https://his.instructure.com)
               </p>
             </div>
 
