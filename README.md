@@ -22,7 +22,8 @@ A web application that helps students manage and organize their Canvas LMS assig
 
 2. **Start the backend**
    ```bash
-   cd backend
+   python3 -m venv .venv  
+   source .venv/bin/activate
    pip install -r requirements.txt
    python main.py
    ```
@@ -30,8 +31,8 @@ A web application that helps students manage and organize their Canvas LMS assig
 3. **Start the frontend** (in a new terminal)
    ```bash
    cd frontend
-   npm install
-   npm start
+   pnpm install
+   pnpm start
    ```
 
 4. **Open your browser** to `http://localhost:3000`
@@ -47,7 +48,7 @@ A web application that helps students manage and organize their Canvas LMS assig
 ## Prerequisites
 
 - Python 3.7+ (for backend)
-- Node.js and npm (for frontend)
+- Node.js and pnpm (for frontend)
 
 ## Installation & Setup
 
@@ -79,12 +80,12 @@ The backend will start on `http://localhost:8000`
 
 2. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. Start the development server:
    ```bash
-   npm start
+   pnpm start
    ```
 
 The frontend will start on `http://localhost:3000`
@@ -142,7 +143,7 @@ The frontend will start on `http://localhost:3000`
 
 1. Build the project:
    ```bash
-   npm run build
+   pnpm run build
    ```
 
 2. Deploy the `build` folder to your hosting platform
