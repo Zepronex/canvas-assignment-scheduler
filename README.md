@@ -19,11 +19,17 @@ A web application that fetches Canvas LMS assignments and allows users to schedu
    cd canvas-assignment-scheduler
    ```
 
-2. **Start the backend**
-   ```bash
+2. **Initialization**
+   ```
+   cd backend
    python3 -m venv .venv  
    source .venv/bin/activate
    pip install -r requirements.txt
+   ```
+
+2. **Start the backend**
+   ```bash
+   cd backend
    python main.py
    ```
 
