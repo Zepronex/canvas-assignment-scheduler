@@ -9,17 +9,17 @@ import logging
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-# Set up logging for better debugging and monitoring
+# set up logging for better debugging and monitoring
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables from .env file
+# load environment variables from .env file
 load_dotenv()
 
-# Initialize FastAPI application
+# initialize fastapi application
 app = FastAPI()
 
-# Configure CORS to allow frontend requests
+# configure cors to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -28,18 +28,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate limiting storage (in production, use Redis)
+# rate limiting storage (in production, use redis)
 rate_limit_storage = {}
 RATE_LIMIT_WINDOW = 60  # 1 minute window
-RATE_LIMIT_MAX_REQUESTS = 30  # 30 requests per minute per IP
+RATE_LIMIT_MAX_REQUESTS = 30  # 30 requests per minute per ip
 
-# Simple rate limiting middleware
+# simple rate limiting middleware
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
-    # Get client IP address
+    # get client ip address
     client_ip = request.client.host
     
-    # Clean old entries (older than 1 minute)
+    # clean old entries (older than 1 minute)
     current_time = time.time()
     if client_ip in rate_limit_storage:
         rate_limit_storage[client_ip] = [
@@ -49,7 +49,7 @@ async def rate_limit_middleware(request, call_next):
     else:
         rate_limit_storage[client_ip] = []
     
-    # Check if client has exceeded rate limit
+    # check if client has exceeded rate limit
     if len(rate_limit_storage[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
         from fastapi.responses import JSONResponse
         return JSONResponse(
@@ -61,14 +61,14 @@ async def rate_limit_middleware(request, call_next):
             }
         )
     
-    # Add current request timestamp
+    # add current request timestamp
     rate_limit_storage[client_ip].append(current_time)
     
-    # Process the request
+    # process the request
     response = await call_next(request)
     return response
 
-# Data model for Canvas API credentials
+# data model for canvas api credentials
 class CanvasCredentials(BaseModel):
     canvas_url: str
     canvas_token: str
@@ -76,34 +76,34 @@ class CanvasCredentials(BaseModel):
 
 def make_canvas_request_with_retry(url: str, headers: dict, params: dict = None, max_retries: int = 3):
     """
-    Make a request to Canvas API with automatic retry on failure.
+    make a request to canvas api with automatic retry on failure.
     
-    This function implements exponential backoff retry logic to handle temporary
+    this function implements exponential backoff retry logic to handle temporary
     network issues, rate limiting, and server errors gracefully.
     
     Args:
-        url: The Canvas API endpoint URL
-        headers: HTTP headers including authorization
-        params: Query parameters for the request
-        max_retries: Maximum number of retry attempts (default: 3)
+        url: the canvas api endpoint url
+        headers: http headers including authorization
+        params: query parameters for the request
+        max_retries: maximum number of retry attempts (default: 3)
     
     Returns:
-        requests.Response: The successful response from Canvas API
+        requests.Response: the successful response from canvas api
         
     Raises:
-        HTTPException: For various error conditions with specific error messages
+        HTTPException: for various error conditions with specific error messages
     """
-    # Try the request up to max_retries + 1 times
+    # try the request up to max_retries + 1 times
     for attempt in range(max_retries + 1):
         try:
-            # Make the HTTP request with a 30-second timeout
+            # make the http request with a 30-second timeout
             response = requests.get(url, headers=headers, params=params, timeout=30)
             
-            # Handle successful response
+            # handle successful response
             if response.status_code == 200:
                 return response
             
-            # Handle authentication errors (no retry needed)
+            # handle authentication errors (no retry needed)
             elif response.status_code == 401:
                 raise HTTPException(
                     status_code=401, 
@@ -120,7 +120,7 @@ def make_canvas_request_with_retry(url: str, headers: dict, params: dict = None,
                     detail="Canvas resource not found. Please check your Canvas URL."
                 )
             
-            # Handle rate limiting with retry
+            # handle rate limiting with retry
             elif response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', 60))
                 if attempt < max_retries:
@@ -133,10 +133,10 @@ def make_canvas_request_with_retry(url: str, headers: dict, params: dict = None,
                         detail=f"Canvas API rate limit exceeded. Please try again in {retry_after} seconds."
                     )
             
-            # Handle server errors with exponential backoff retry
+            # handle server errors with exponential backoff retry
             elif response.status_code >= 500:
                 if attempt < max_retries:
-                    delay = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                    delay = 2 ** attempt  # exponential backoff: 1, 2, 4 seconds
                     logger.warning(f"Canvas API error {response.status_code}, retrying in {delay}s...")
                     time.sleep(delay)
                     continue
@@ -146,14 +146,14 @@ def make_canvas_request_with_retry(url: str, headers: dict, params: dict = None,
                         detail="Canvas server error. Please try again later."
                     )
             
-            # Handle other HTTP errors
+            # handle other http errors
             else:
                 raise HTTPException(
                     status_code=response.status_code, 
                     detail=f"Canvas API error: {response.status_code} - {response.text}"
                 )
                 
-        # Handle network timeout errors
+        # handle network timeout errors
         except requests.exceptions.Timeout:
             if attempt < max_retries:
                 delay = 2 ** attempt
@@ -166,7 +166,7 @@ def make_canvas_request_with_retry(url: str, headers: dict, params: dict = None,
                     detail="Request timeout. Canvas server is not responding."
                 )
         
-        # Handle connection errors (network issues)
+        # handle connection errors (network issues)
         except requests.exceptions.ConnectionError:
             if attempt < max_retries:
                 delay = 2 ** attempt
@@ -179,20 +179,20 @@ def make_canvas_request_with_retry(url: str, headers: dict, params: dict = None,
                     detail="Cannot connect to Canvas. Please check your internet connection."
                 )
         
-        # Handle other request-related errors
+        # handle other request-related errors
         except requests.exceptions.RequestException as e:
             raise HTTPException(
                 status_code=500, 
                 detail=f"Network error: {str(e)}"
             )
     
-    # If we've exhausted all retry attempts
+    # if we've exhausted all retry attempts
     raise HTTPException(
         status_code=500, 
         detail="Max retries exceeded. Please try again later."
     )
 
-# API root endpoint - provides basic information about the service
+# api root endpoint - provides basic information about the service
 @app.get("/")
 def read_root():
     return {
@@ -206,7 +206,7 @@ def read_root():
         ]
     }
 
-# Health check endpoint (not rate limited)
+# health check endpoint (not rate limited)
 @app.get("/health")
 def health_check():
     return {
@@ -218,23 +218,23 @@ def health_check():
         }
     }
 
-# Validate Canvas credentials by attempting to fetch user information
+# validate canvas credentials by attempting to fetch user information
 @app.post("/api/validate-credentials")
 def validate_credentials(credentials: CanvasCredentials):
     try:
-        # Set up headers for Canvas API request
+        # set up headers for canvas api request
         headers = {
             "Authorization": f"Bearer {credentials.canvas_token}",
             "User-Agent": "Canvas-Assignment-Scheduler/2.0"
         }
         
-        # Test the credentials by fetching user info
+        # test the credentials by fetching user info
         response = make_canvas_request_with_retry(
             f"{credentials.canvas_url}/api/v1/users/self",
             headers
         )
         
-        # Extract user data from successful response
+        # extract user data from successful response
         user_data = response.json()
         return {
             "valid": True,
@@ -246,30 +246,30 @@ def validate_credentials(credentials: CanvasCredentials):
         }
             
     except HTTPException as e:
-        # Return validation failure with specific error message
+        # return validation failure with specific error message
         return {"valid": False, "error": e.detail}
     except Exception as e:
-        # Log unexpected errors and return generic message
+        # log unexpected errors and return generic message
         logger.error(f"Unexpected error in validate_credentials: {str(e)}")
         return {"valid": False, "error": "An unexpected error occurred. Please try again."}
 
-# Get current user information from Canvas
+# get current user information from canvas
 @app.post("/api/user")
 def get_user(credentials: CanvasCredentials):
     try:
-        # Set up headers for Canvas API request
+        # set up headers for canvas api request
         headers = {
             "Authorization": f"Bearer {credentials.canvas_token}",
             "User-Agent": "Canvas-Assignment-Scheduler/2.0"
         }
         
-        # Fetch user information from Canvas
+        # fetch user information from canvas
         response = make_canvas_request_with_retry(
             f"{credentials.canvas_url}/api/v1/users/self",
             headers
         )
         
-        # Parse and return user data
+        # parse and return user data
         user_data = response.json()
         return {
             "id": user_data.get("id"),
@@ -277,34 +277,34 @@ def get_user(credentials: CanvasCredentials):
             "email": user_data.get("primary_email")
         }
     except HTTPException:
-        # Re-raise HTTP exceptions (they already have proper error messages)
+        # re-raise http exceptions (they already have proper error messages)
         raise
     except Exception as e:
-        # Log unexpected errors and return generic message
+        # log unexpected errors and return generic message
         logger.error(f"Unexpected error in get_user: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
-# Get all active courses for the authenticated user
+# get all active courses for the authenticated user
 @app.post("/api/courses")
 def get_courses(credentials: CanvasCredentials):
     try:
-        # Set up headers for Canvas API request
+        # set up headers for canvas api request
         headers = {
             "Authorization": f"Bearer {credentials.canvas_token}",
             "User-Agent": "Canvas-Assignment-Scheduler/2.0"
         }
         
-        # Fetch courses from Canvas API
+        # fetch courses from canvas api
         response = make_canvas_request_with_retry(
             f"{credentials.canvas_url}/api/v1/courses",
             headers,
             params={
-                "enrollment_state": "active",  # Only get courses the user is actively enrolled in
-                "per_page": 100  # Get up to 100 courses per request
+                "enrollment_state": "active",  # only get courses the user is actively enrolled in
+                "per_page": 100  # get up to 100 courses per request
             }
         )
         
-        # Parse course data and filter out date-restricted courses
+        # parse course data and filter out date-restricted courses
         courses = response.json()
         return [
             {
@@ -313,27 +313,27 @@ def get_courses(credentials: CanvasCredentials):
                 "course_code": course.get("course_code")
             }
             for course in courses
-            if not course.get("access_restricted_by_date")  # Skip courses with date restrictions
+            if not course.get("access_restricted_by_date")  # skip courses with date restrictions
         ]
     except HTTPException:
-        # Re-raise HTTP exceptions (they already have proper error messages)
+        # re-raise http exceptions (they already have proper error messages)
         raise
     except Exception as e:
-        # Log unexpected errors and return generic message
+        # log unexpected errors and return generic message
         logger.error(f"Unexpected error in get_courses: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
-# Get all assignments across all courses for the authenticated user
+# get all assignments across all courses for the authenticated user
 @app.post("/api/assignments")
 def get_all_assignments(credentials: CanvasCredentials):
     try:
-        # Set up headers for Canvas API request
+        # set up headers for canvas api request
         headers = {
             "Authorization": f"Bearer {credentials.canvas_token}",
             "User-Agent": "Canvas-Assignment-Scheduler/2.0"
         }
         
-        # First, get all active courses
+        # first, get all active courses
         courses_response = make_canvas_request_with_retry(
             f"{credentials.canvas_url}/api/v1/courses",
             headers,
@@ -346,25 +346,25 @@ def get_all_assignments(credentials: CanvasCredentials):
         
         all_assignments = []
         
-        # Fetch assignments for each course
+        # fetch assignments for each course
         for course in courses:
-            # Skip courses with date restrictions
+            # skip courses with date restrictions
             if course.get("access_restricted_by_date"):
                 continue
                 
             course_id = course["id"]
             try:
-                # Get assignments for this specific course
+                # get assignments for this specific course
                 response = make_canvas_request_with_retry(
                     f"{credentials.canvas_url}/api/v1/courses/{course_id}/assignments",
                     headers,
                     params={
                         "per_page": 100,
-                        "order_by": "due_at"  # Sort by due date
+                        "order_by": "due_at"  # sort by due date
                     }
                 )
                 
-                # Process assignments and filter out quiz assignments
+                # process assignments and filter out quiz assignments
                 assignments = response.json()
                 for assignment in assignments:
                     if not assignment.get("is_quiz_assignment"):
@@ -378,40 +378,40 @@ def get_all_assignments(credentials: CanvasCredentials):
                             "html_url": assignment.get("html_url")
                         })
             except HTTPException as e:
-                # Log warning but continue with other courses
+                # log warning but continue with other courses
                 logger.warning(f"Failed to fetch assignments for course {course_id}: {e.detail}")
                 continue
         
         return all_assignments
     except HTTPException:
-        # Re-raise HTTP exceptions (they already have proper error messages)
+        # re-raise http exceptions (they already have proper error messages)
         raise
     except Exception as e:
-        # Log unexpected errors and return generic message
+        # log unexpected errors and return generic message
         logger.error(f"Unexpected error in get_all_assignments: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
-# Get assignments for a specific course
+# get assignments for a specific course
 @app.post("/api/assignments/{course_id}")
 def get_course_assignments(course_id: int, credentials: CanvasCredentials):
     try:
-        # Set up headers for Canvas API request
+        # set up headers for canvas api request
         headers = {
             "Authorization": f"Bearer {credentials.canvas_token}",
             "User-Agent": "Canvas-Assignment-Scheduler/2.0"
         }
         
-        # Fetch assignments for the specified course
+        # fetch assignments for the specified course
         response = make_canvas_request_with_retry(
             f"{credentials.canvas_url}/api/v1/courses/{course_id}/assignments",
             headers,
             params={
                 "per_page": 100,
-                "order_by": "due_at"  # Sort by due date
+                "order_by": "due_at"  # sort by due date
             }
         )
         
-        # Parse assignments and filter out quiz assignments
+        # parse assignments and filter out quiz assignments
         assignments = response.json()
         return [
             {
@@ -422,27 +422,27 @@ def get_course_assignments(course_id: int, credentials: CanvasCredentials):
                 "html_url": assignment.get("html_url")
             }
             for assignment in assignments
-            if not assignment.get("is_quiz_assignment")  # Skip quiz assignments
+            if not assignment.get("is_quiz_assignment")  # skip quiz assignments
         ]
     except HTTPException:
-        # Re-raise HTTP exceptions (they already have proper error messages)
+        # re-raise http exceptions (they already have proper error messages)
         raise
     except Exception as e:
-        # Log unexpected errors and return generic message
+        # log unexpected errors and return generic message
         logger.error(f"Unexpected error in get_course_assignments: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
-# Get only upcoming assignments for bulk operations like "Select All Upcoming"
+# get only upcoming assignments for bulk operations like "select all upcoming"
 @app.post("/api/assignments/upcoming")
 def get_upcoming_assignments(credentials: CanvasCredentials):
     try:
-        # Set up headers for Canvas API request
+        # set up headers for canvas api request
         headers = {
             "Authorization": f"Bearer {credentials.canvas_token}",
             "User-Agent": "Canvas-Assignment-Scheduler/2.0"
         }
         
-        # First, get all active courses
+        # first, get all active courses
         courses_response = make_canvas_request_with_retry(
             f"{credentials.canvas_url}/api/v1/courses",
             headers,
@@ -456,14 +456,14 @@ def get_upcoming_assignments(credentials: CanvasCredentials):
         upcoming_assignments = []
         current_time = datetime.now()
         
-        # Fetch assignments for each course and filter for upcoming ones
+        # fetch assignments for each course and filter for upcoming ones
         for course in courses:
             if course.get("access_restricted_by_date"):
                 continue
                 
             course_id = course["id"]
             try:
-                # Get assignments for this specific course
+                # get assignments for this specific course
                 response = make_canvas_request_with_retry(
                     f"{credentials.canvas_url}/api/v1/courses/{course_id}/assignments",
                     headers,
@@ -473,11 +473,11 @@ def get_upcoming_assignments(credentials: CanvasCredentials):
                     }
                 )
                 
-                # Process assignments and filter for upcoming ones only
+                # process assignments and filter for upcoming ones only
                 assignments = response.json()
                 for assignment in assignments:
                     if not assignment.get("is_quiz_assignment") and assignment.get("due_at"):
-                        # Check if assignment is upcoming (due date is in the future)
+                        # check if assignment is upcoming (due date is in the future)
                         due_date = datetime.fromisoformat(assignment["due_at"].replace('Z', '+00:00'))
                         if due_date > current_time:
                             upcoming_assignments.append({
@@ -490,7 +490,7 @@ def get_upcoming_assignments(credentials: CanvasCredentials):
                                 "html_url": assignment.get("html_url")
                             })
             except HTTPException as e:
-                # Log warning but continue with other courses
+                # log warning but continue with other courses
                 logger.warning(f"Failed to fetch assignments for course {course_id}: {e.detail}")
                 continue
         
@@ -499,14 +499,14 @@ def get_upcoming_assignments(credentials: CanvasCredentials):
             "count": len(upcoming_assignments)
         }
     except HTTPException:
-        # Re-raise HTTP exceptions (they already have proper error messages)
+        # re-raise http exceptions (they already have proper error messages)
         raise
     except Exception as e:
-        # Log unexpected errors and return generic message
+        # log unexpected errors and return generic message
         logger.error(f"Unexpected error in get_upcoming_assignments: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
-# Start the server when running this file directly
+# start the server when running this file directly
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

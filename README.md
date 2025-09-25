@@ -115,7 +115,7 @@ The frontend will start on `http://localhost:3000`
 ## Prerequisites
 
 - Python 3.7+
-- Node.js and npm
+- Node.js and pnpm
 
 ## Security
 
