@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, BookOpen, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, BookOpen, CheckCircle, AlertCircle, ChevronRight, Search, FileText } from 'lucide-react';
 import { API_BASE } from '../constants';
 import { Course, Assignment, UserInfo } from '../types';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 function MainApp() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -26,6 +27,12 @@ function MainApp() {
     return (saved as 'asc' | 'desc') || 'asc';
   });
   const [selectedAssignments, setSelectedAssignments] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [assignmentNotes, setAssignmentNotes] = useState<Record<number, string>>(() => {
+    const saved = localStorage.getItem('assignmentNotes');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [editingNote, setEditingNote] = useState<number | null>(null);
 
   // functions to save filter state to localStorage
   const updateSortBy = (newSortBy: 'date' | 'course') => {
@@ -148,12 +155,23 @@ function MainApp() {
   const getFilteredAssignments = () => {
     let filtered = assignments;
     
+    // apply course filter
     if (selectedCourse) {
       filtered = filtered.filter(a => a.course_id === selectedCourse);
     }
     
+    // apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(a => 
+        a.name.toLowerCase().includes(query) ||
+        a.course_name.toLowerCase().includes(query)
+      );
+    }
+    
     const now = new Date();
     
+    // apply status filter
     switch (statusFilter) {
       case 'all':
         // no filtering needed
@@ -320,6 +338,20 @@ function MainApp() {
     setSelectedAssignments(new Set());
   };
 
+  const saveNote = (assignmentId: number, note: string) => {
+    const newNotes = { ...assignmentNotes, [assignmentId]: note };
+    setAssignmentNotes(newNotes);
+    localStorage.setItem('assignmentNotes', JSON.stringify(newNotes));
+    setEditingNote(null);
+  };
+
+  const deleteNote = (assignmentId: number) => {
+    const newNotes = { ...assignmentNotes };
+    delete newNotes[assignmentId];
+    setAssignmentNotes(newNotes);
+    localStorage.setItem('assignmentNotes', JSON.stringify(newNotes));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -348,6 +380,28 @@ function MainApp() {
   const filteredAssignments = getFilteredAssignments();
   const upcomingCount = assignments.filter(a => a.due_at && new Date(a.due_at) >= new Date()).length;
   const overdueCount = assignments.filter(a => a.due_at && new Date(a.due_at) < new Date()).length;
+
+  // keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: 'a',
+      ctrlKey: true,
+      action: selectAllUpcoming,
+      description: 'Ctrl+A: Select all upcoming assignments'
+    },
+    {
+      key: 'r',
+      ctrlKey: true,
+      action: fetchData,
+      description: 'Ctrl+R: Refresh data'
+    },
+    {
+      key: 'f',
+      ctrlKey: true,
+      action: () => document.querySelector('input[type="text"]')?.focus(),
+      description: 'Ctrl+F: Focus search'
+    }
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -406,6 +460,20 @@ function MainApp() {
           <div className="lg:w-80">
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search assignments or courses..."
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
               
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -541,6 +609,70 @@ function MainApp() {
                                 </span>
                               )}
                             </div>
+                            
+                            {/* assignment notes */}
+                            {assignmentNotes[assignment.id] && (
+                              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-start">
+                                    <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
+                                    <p className="text-sm text-blue-800 dark:text-blue-200">{assignmentNotes[assignment.id]}</p>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteNote(assignment.id)}
+                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 text-xs"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* note input */}
+                            {editingNote === assignment.id ? (
+                              <div className="mt-2">
+                                <textarea
+                                  defaultValue={assignmentNotes[assignment.id] || ''}
+                                  placeholder="Add a note for this assignment..."
+                                  className="w-full p-2 text-sm border border-gray-300 rounded-md resize-none"
+                                  rows={2}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && e.ctrlKey) {
+                                      saveNote(assignment.id, e.currentTarget.value);
+                                    }
+                                    if (e.key === 'Escape') {
+                                      setEditingNote(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                                <div className="flex justify-end space-x-2 mt-1">
+                                  <button
+                                    onClick={() => setEditingNote(null)}
+                                    className="text-xs text-gray-500 hover:text-gray-700"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      const textarea = e.currentTarget.parentElement?.previousElementSibling as HTMLTextAreaElement;
+                                      saveNote(assignment.id, textarea.value);
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    Save (Ctrl+Enter)
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setEditingNote(assignment.id)}
+                                className="mt-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center"
+                              >
+                                <FileText className="w-3 h-3 mr-1" />
+                                {assignmentNotes[assignment.id] ? 'Edit note' : 'Add note'}
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2 ml-4">

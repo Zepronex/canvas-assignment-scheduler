@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 interface NavigationProps {
   isAuthenticated: boolean;
@@ -39,40 +40,41 @@ function Navigation({ isAuthenticated }: NavigationProps) {
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b">
+    <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <BookOpen className="w-8 h-8 text-blue-600 mr-3" />
-            <h1 className="text-xl font-semibold text-gray-900">Canvas Assignment Scheduler</h1>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Canvas Assignment Scheduler</h1>
           </div>
           
           {/* navigation tabs */}
-          <div className="flex items-center space-x-8">
+          <div className="flex items-center space-x-6">
             {menuItems.map((item) => (
               <button
                 key={item.name}
                 onClick={() => navigate(item.path)}
                 className={`text-base font-medium transition-colors ${
                   isActive(item.path)
-                    ? 'text-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
                 }`}
               >
                 {item.name}
               </button>
             ))}
+            <ThemeToggle />
             {hasValidCredentials ? (
               <button
                 onClick={handleLogOut}
-                className="text-base font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                className="text-base font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 Log Out
               </button>
             ) : (
               <button
                 onClick={handleLogIn}
-                className="text-base font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                className="text-base font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 Log In
               </button>

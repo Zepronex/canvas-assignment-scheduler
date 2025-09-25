@@ -5,9 +5,14 @@ import LandingPage from './components/LandingPage';
 import AboutPage from './components/AboutPage';
 import SetupPage from './components/SetupPage';
 import MainApp from './components/MainApp';
+import ToastContainer from './components/ToastContainer';
+import { useTheme } from './hooks/useTheme';
+import { useToast } from './hooks/useToast';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('canvasToken'));
+  const { theme } = useTheme(); // initialize theme
+  const { toasts, removeToast } = useToast();
 
   useEffect(() => {
     const checkAuth = () => {
@@ -90,6 +95,7 @@ export default function App() {
           isAuthenticated ? <MainApp /> : <SetupPage />
         } />
       </Routes>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </Router>
   );
 }
