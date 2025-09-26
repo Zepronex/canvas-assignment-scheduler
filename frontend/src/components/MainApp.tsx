@@ -398,7 +398,7 @@ function MainApp() {
     {
       key: 'f',
       ctrlKey: true,
-      action: () => document.querySelector('input[type="text"]')?.focus(),
+      action: () => (document.querySelector('input[type="text"]') as HTMLInputElement)?.focus(),
       description: 'Ctrl+F: Focus search'
     }
   ]);
