@@ -3,8 +3,14 @@ import test from 'node:test';
 
 import {
   CanvasConnectionError,
+  fetchCanvasAssignmentsForCourse,
+  fetchCanvasCourses,
+  fetchPaginatedCanvasGet,
   normalizeCanvasBaseUrl,
+  normalizeCanvasAssignment,
   normalizeCanvasUrl,
+  parseCanvasLinkHeader,
+  syncCanvasAssignments,
   validateCanvasConnection,
 } from '../.test-build/lib/canvas.js';
 
@@ -114,6 +120,152 @@ test('validateCanvasConnection maps malformed Canvas responses', async () => {
   );
 });
 
+test('parseCanvasLinkHeader extracts Canvas pagination relations', () => {
+  const links = parseCanvasLinkHeader(
+    '<https://canvas.example.edu/api/v1/courses?search=a,b&page=1>; rel="current", ' +
+      '<https://canvas.example.edu/api/v1/courses?page=2>; rel="next", ' +
+      '<https://canvas.example.edu/api/v1/courses?page=4>; rel="last"',
+  );
+
+  assert.deepEqual(links, {
+    current: 'https://canvas.example.edu/api/v1/courses?search=a,b&page=1',
+    next: 'https://canvas.example.edu/api/v1/courses?page=2',
+    last: 'https://canvas.example.edu/api/v1/courses?page=4',
+  });
+  assert.deepEqual(parseCanvasLinkHeader(null), {});
+});
+
+test('fetchCanvasCourses follows pagination and uses the active course endpoint', async () => {
+  const requestedUrls = [];
+
+  const courses = await fetchCanvasCourses(
+    canvasSettings(),
+    async (url, init) => {
+      requestedUrls.push(url);
+      assert.equal(init.method, 'GET');
+      assert.equal(init.headers.Authorization, 'Bearer token-value');
+
+      if (requestedUrls.length === 1) {
+        return jsonResponse(
+          [{ id: 1, name: 'Algorithms', course_code: 'CS 301' }],
+          {
+            headers: {
+              Link: '</api/v1/courses?enrollment_state=active&per_page=100&page=2>; rel="next"',
+            },
+          },
+        );
+      }
+
+      return jsonResponse([{ id: 2, name: 'Databases', workflow_state: 'available' }]);
+    },
+  );
+
+  assert.deepEqual(requestedUrls, [
+    'https://canvas.example.edu/api/v1/courses?enrollment_state=active&per_page=100',
+    'https://canvas.example.edu/api/v1/courses?enrollment_state=active&per_page=100&page=2',
+  ]);
+  assert.deepEqual(courses, [
+    { id: 1, name: 'Algorithms', course_code: 'CS 301' },
+    { id: 2, name: 'Databases', workflow_state: 'available' },
+  ]);
+});
+
+test('fetchCanvasAssignmentsForCourse uses the course assignments endpoint', async () => {
+  const assignments = await fetchCanvasAssignmentsForCourse(
+    canvasSettings(),
+    42,
+    async (url) => {
+      assert.equal(
+        url,
+        'https://canvas.example.edu/api/v1/courses/42/assignments?per_page=100',
+      );
+      return jsonResponse([canvasAssignment({ id: 9, course_id: 42 })]);
+    },
+  );
+
+  assert.equal(assignments[0].id, 9);
+  assert.equal(assignments[0].points_possible, 0);
+});
+
+test('fetchPaginatedCanvasGet rejects malformed pages and cross-origin next links', async () => {
+  await assert.rejects(
+    fetchPaginatedCanvasGet(canvasSettings(), '/api/v1/courses', {}, async () =>
+      jsonResponse({ courses: [] }),
+    ),
+    isCanvasError('unexpected-response'),
+  );
+
+  let requestCount = 0;
+  await assert.rejects(
+    fetchPaginatedCanvasGet(canvasSettings(), '/api/v1/courses', {}, async () => {
+      requestCount += 1;
+      return jsonResponse([], {
+        headers: { Link: '<https://attacker.example/api/v1/courses?page=2>; rel="next"' },
+      });
+    }),
+    isCanvasError('unexpected-response'),
+  );
+  assert.equal(requestCount, 1);
+});
+
+test('fetchCanvasCourses rejects malformed course items', async () => {
+  await assert.rejects(
+    fetchCanvasCourses(canvasSettings(), async () => jsonResponse([{ id: '1', name: null }])),
+    isCanvasError('unexpected-response'),
+  );
+});
+
+test('normalizeCanvasAssignment maps Canvas fields into the internal shape', () => {
+  const normalized = normalizeCanvasAssignment(
+    canvasAssignment({ course_id: 999, due_at: null, points_possible: 0 }),
+    { id: 42, name: 'Algorithms' },
+  );
+
+  assert.deepEqual(normalized, {
+    id: 7,
+    courseId: 42,
+    courseName: 'Algorithms',
+    name: 'Problem set',
+    dueAt: null,
+    htmlUrl: 'https://canvas.example.edu/courses/42/assignments/7',
+    pointsPossible: 0,
+    workflowState: 'published',
+    updatedAt: '2026-07-10T08:00:00Z',
+  });
+});
+
+test('syncCanvasAssignments aggregates and normalizes assignments from active courses', async () => {
+  const result = await syncCanvasAssignments(canvasSettings(), async (url) => {
+    const parsedUrl = new URL(url);
+
+    if (parsedUrl.pathname === '/api/v1/courses') {
+      assert.equal(parsedUrl.searchParams.get('enrollment_state'), 'active');
+      assert.equal(parsedUrl.searchParams.get('per_page'), '100');
+      return jsonResponse([
+        { id: 10, name: 'Algorithms' },
+        { id: 20, name: 'Databases' },
+        { id: 30, name: 'Future course', access_restricted_by_date: true },
+      ]);
+    }
+
+    if (parsedUrl.pathname === '/api/v1/courses/10/assignments') {
+      return jsonResponse([canvasAssignment({ course_id: 10 })]);
+    }
+
+    if (parsedUrl.pathname === '/api/v1/courses/20/assignments') {
+      return jsonResponse([]);
+    }
+
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  assert.equal(result.courses.length, 3);
+  assert.equal(result.assignments.length, 1);
+  assert.equal(result.assignments[0].courseId, 10);
+  assert.equal(result.assignments[0].courseName, 'Algorithms');
+  assert.equal(new Date(result.lastSyncedAt).toISOString(), result.lastSyncedAt);
+});
+
 function jsonResponse(payload, init = {}) {
   return new Response(JSON.stringify(payload), {
     headers: {
@@ -122,6 +274,27 @@ function jsonResponse(payload, init = {}) {
     status: 200,
     ...init,
   });
+}
+
+function canvasSettings() {
+  return {
+    canvasUrl: 'https://canvas.example.edu',
+    canvasToken: 'token-value',
+  };
+}
+
+function canvasAssignment(overrides = {}) {
+  return {
+    id: 7,
+    course_id: 42,
+    name: 'Problem set',
+    due_at: '2026-07-12T14:00:00Z',
+    html_url: 'https://canvas.example.edu/courses/42/assignments/7',
+    points_possible: 0,
+    workflow_state: 'published',
+    updated_at: '2026-07-10T08:00:00Z',
+    ...overrides,
+  };
 }
 
 function assertCanvasError(callback, code) {

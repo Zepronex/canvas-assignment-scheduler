@@ -38,7 +38,7 @@ A simple web app that fetches Canvas assignments and lets you schedule them in G
 
 ## Chrome Extension Permissions
 
-The Chrome extension stores the Canvas URL and API token in `chrome.storage.local`. Host access is optional: when `Test connection` is clicked, Chrome requests permission only for the exact HTTPS Canvas origin entered. That permission lets the extension call `GET /api/v1/users/self` with the local token; assignment fetching is not implemented yet.
+The Chrome extension stores the Canvas URL, API token, and latest assignment cache in `chrome.storage.local`. Host access is optional: when `Test connection` or `Sync assignments` is clicked, Chrome requests permission only for the exact HTTPS Canvas origin entered. Canvas requests go directly from the extension to that origin. Assignment sync is currently manual; background sync and notifications are not enabled.
 
 ## Tech Stack
 
