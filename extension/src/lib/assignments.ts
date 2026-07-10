@@ -1,7 +1,7 @@
 import type {
-  Assignment,
   AssignmentSortBy,
   AssignmentStatusFilter,
+  NormalizedAssignment,
   SortOrder,
 } from '../types';
 
@@ -15,9 +15,9 @@ export interface AssignmentFilterOptions {
 }
 
 export function filterAndSortAssignments(
-  assignments: Assignment[],
+  assignments: NormalizedAssignment[],
   options: AssignmentFilterOptions = {},
-): Assignment[] {
+): NormalizedAssignment[] {
   const {
     selectedCourseId = null,
     searchQuery = '',
@@ -30,7 +30,7 @@ export function filterAndSortAssignments(
   let filtered = [...assignments];
 
   if (selectedCourseId) {
-    filtered = filtered.filter((assignment) => assignment.course_id === selectedCourseId);
+    filtered = filtered.filter((assignment) => assignment.courseId === selectedCourseId);
   }
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -38,35 +38,58 @@ export function filterAndSortAssignments(
     filtered = filtered.filter((assignment) => {
       return (
         assignment.name.toLowerCase().includes(normalizedQuery) ||
-        assignment.course_name.toLowerCase().includes(normalizedQuery)
+        assignment.courseName.toLowerCase().includes(normalizedQuery)
       );
     });
   }
 
   if (statusFilter === 'upcoming') {
     filtered = filtered.filter((assignment) => {
-      return Boolean(assignment.due_at && new Date(assignment.due_at) >= now);
+      return Boolean(assignment.dueAt && new Date(assignment.dueAt) >= now);
     });
   } else if (statusFilter === 'overdue') {
     filtered = filtered.filter((assignment) => {
-      return Boolean(assignment.due_at && new Date(assignment.due_at) < now);
+      return Boolean(assignment.dueAt && new Date(assignment.dueAt) < now);
     });
   } else if (statusFilter === 'no-date') {
-    filtered = filtered.filter((assignment) => !assignment.due_at);
+    filtered = filtered.filter((assignment) => !assignment.dueAt);
   }
 
   return filtered.sort((first, second) => {
     const comparison =
       sortBy === 'date'
         ? compareAssignmentDates(first, second)
-        : first.course_name.localeCompare(second.course_name);
+        : first.courseName.localeCompare(second.courseName);
 
     return sortOrder === 'asc' ? comparison : -comparison;
   });
 }
 
-function compareAssignmentDates(first: Assignment, second: Assignment): number {
-  if (!first.due_at) return 1;
-  if (!second.due_at) return -1;
-  return new Date(first.due_at).getTime() - new Date(second.due_at).getTime();
+export function sortAssignmentsByDueDate(
+  assignments: NormalizedAssignment[],
+): NormalizedAssignment[] {
+  return [...assignments].sort(compareAssignmentDates);
+}
+
+function compareAssignmentDates(first: NormalizedAssignment, second: NormalizedAssignment): number {
+  const firstDueAt = getDueAtTimestamp(first.dueAt);
+  const secondDueAt = getDueAtTimestamp(second.dueAt);
+
+  if (firstDueAt === null && secondDueAt === null) {
+    return first.name.localeCompare(second.name);
+  }
+  if (firstDueAt === null) return 1;
+  if (secondDueAt === null) return -1;
+
+  const dueDateComparison = firstDueAt - secondDueAt;
+  return dueDateComparison || first.name.localeCompare(second.name);
+}
+
+function getDueAtTimestamp(dueAt: string | null): number | null {
+  if (!dueAt) {
+    return null;
+  }
+
+  const timestamp = Date.parse(dueAt);
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
