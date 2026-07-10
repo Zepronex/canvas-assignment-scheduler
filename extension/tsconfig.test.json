@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "noEmit": false,
+    "outDir": ".test-build",
+    "rootDir": "src",
+    "sourceMap": false
+  },
+  "include": ["src/lib/canvas.ts", "src/types.ts"]
+}

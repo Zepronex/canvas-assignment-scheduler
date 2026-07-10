@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:build": "tsc -p tsconfig.test.json",
+    "test": "pnpm run test:build && node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -36,6 +36,10 @@ A simple web app that fetches Canvas assignments and lets you schedule them in G
 2. Enter Canvas URL (e.g., `https://your-university.instructure.com`)
 3. Browse assignments and add to Google Calendar
 
+## Chrome Extension Permissions
+
+The Chrome extension stores the Canvas URL and API token in `chrome.storage.local`. Host access is optional: when `Test connection` is clicked, Chrome requests permission only for the exact HTTPS Canvas origin entered. That permission lets the extension call `GET /api/v1/users/self` with the local token; assignment fetching is not implemented yet.
+
 ## Tech Stack
 
 - **Frontend**: React + TypeScript + Tailwind CSS

@@ -15,6 +15,7 @@ venv.bak/
 frontend/build/
 frontend/dist/
 extension/dist/
+extension/.test-build/
 
 # Environment variables
 .env
