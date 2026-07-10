@@ -7,5 +7,10 @@
     "rootDir": "src",
     "sourceMap": false
   },
-  "include": ["src/lib/assignments.ts", "src/lib/canvas.ts", "src/types.ts"]
+  "include": [
+    "src/lib/assignments.ts",
+    "src/lib/canvas.ts",
+    "src/lib/storage.ts",
+    "src/types.ts"
+  ]
 }

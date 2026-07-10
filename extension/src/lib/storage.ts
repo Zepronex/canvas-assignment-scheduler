@@ -1,6 +1,10 @@
-import type { Assignment, AssignmentCache, AssignmentNotes, CanvasSettings, Course, UserInfo } from '../types';
-
-export const CACHE_TTL_MS = 30 * 60 * 1000;
+import type {
+  AssignmentNotes,
+  AssignmentSyncResult,
+  CanvasCourse,
+  CanvasSettings,
+  NormalizedAssignment,
+} from '../types';
 
 export const STORAGE_KEYS = {
   settings: 'settings',
@@ -10,7 +14,7 @@ export const STORAGE_KEYS = {
 
 interface LocalStorageSchema {
   [STORAGE_KEYS.settings]: CanvasSettings;
-  [STORAGE_KEYS.assignmentCache]: AssignmentCache;
+  [STORAGE_KEYS.assignmentCache]: AssignmentSyncResult;
   [STORAGE_KEYS.assignmentNotes]: AssignmentNotes;
 }
 
@@ -39,7 +43,10 @@ export async function getAssignmentNotes(): Promise<AssignmentNotes> {
   return isStringRecord(notes) ? notes : {};
 }
 
-export async function saveAssignmentNote(assignmentId: Assignment['id'], note: string): Promise<void> {
+export async function saveAssignmentNote(
+  assignmentId: NormalizedAssignment['id'],
+  note: string,
+): Promise<void> {
   const notes = await getAssignmentNotes();
   const nextNotes = {
     ...notes,
@@ -49,7 +56,9 @@ export async function saveAssignmentNote(assignmentId: Assignment['id'], note: s
   await setStoredValue(STORAGE_KEYS.assignmentNotes, nextNotes);
 }
 
-export async function deleteAssignmentNote(assignmentId: Assignment['id']): Promise<void> {
+export async function deleteAssignmentNote(
+  assignmentId: NormalizedAssignment['id'],
+): Promise<void> {
   const notes = await getAssignmentNotes();
   const nextNotes = { ...notes };
   delete nextNotes[assignmentId];
@@ -57,24 +66,13 @@ export async function deleteAssignmentNote(assignmentId: Assignment['id']): Prom
   await setStoredValue(STORAGE_KEYS.assignmentNotes, nextNotes);
 }
 
-export async function getAssignmentCache(now = Date.now()): Promise<AssignmentCache | null> {
-  const cache = await getStoredValue<AssignmentCache>(STORAGE_KEYS.assignmentCache);
-  if (!cache || now - cache.savedAt >= CACHE_TTL_MS) {
-    return null;
-  }
-
-  return cache;
+export async function getAssignmentCache(): Promise<AssignmentSyncResult | null> {
+  const cache = await getStoredValue<unknown>(STORAGE_KEYS.assignmentCache);
+  return isAssignmentSyncResult(cache) ? cache : null;
 }
 
-export async function saveAssignmentCache(cache: {
-  user: UserInfo | null;
-  courses: Course[];
-  assignments: Assignment[];
-}): Promise<void> {
-  await setStoredValue(STORAGE_KEYS.assignmentCache, {
-    ...cache,
-    savedAt: Date.now(),
-  });
+export async function saveAssignmentCache(result: AssignmentSyncResult): Promise<void> {
+  await setStoredValue(STORAGE_KEYS.assignmentCache, result);
 }
 
 export async function clearAssignmentCache(): Promise<void> {
@@ -146,4 +144,67 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   }
 
   return Object.values(value).every((item) => typeof item === 'string');
+}
+
+function isAssignmentSyncResult(value: unknown): value is AssignmentSyncResult {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.courses) ||
+    !Array.isArray(value.assignments) ||
+    !isTimestamp(value.lastSyncedAt)
+  ) {
+    return false;
+  }
+
+  return value.courses.every(isCanvasCourse) && value.assignments.every(isNormalizedAssignment);
+}
+
+function isCanvasCourse(value: unknown): value is CanvasCourse {
+  if (!isRecord(value) || !isPositiveInteger(value.id) || !isNonEmptyString(value.name)) {
+    return false;
+  }
+
+  return (
+    (value.course_code === undefined ||
+      value.course_code === null ||
+      typeof value.course_code === 'string') &&
+    (value.workflow_state === undefined || typeof value.workflow_state === 'string') &&
+    (value.access_restricted_by_date === undefined ||
+      typeof value.access_restricted_by_date === 'boolean')
+  );
+}
+
+function isNormalizedAssignment(value: unknown): value is NormalizedAssignment {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isPositiveInteger(value.id) &&
+    isPositiveInteger(value.courseId) &&
+    isNonEmptyString(value.courseName) &&
+    isNonEmptyString(value.name) &&
+    (value.dueAt === null || isTimestamp(value.dueAt)) &&
+    isNonEmptyString(value.htmlUrl) &&
+    (value.pointsPossible === null ||
+      (typeof value.pointsPossible === 'number' && Number.isFinite(value.pointsPossible))) &&
+    isNonEmptyString(value.workflowState) &&
+    isTimestamp(value.updatedAt)
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isTimestamp(value: unknown): value is string {
+  return isNonEmptyString(value) && !Number.isNaN(Date.parse(value));
 }
