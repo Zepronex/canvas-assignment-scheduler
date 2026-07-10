@@ -254,6 +254,10 @@ export async function syncCanvasAssignments(
   const assignments: NormalizedAssignment[] = [];
 
   for (const course of courses) {
+    if (course.access_restricted_by_date) {
+      continue;
+    }
+
     const courseAssignments = await fetchCanvasAssignmentsForCourse(settings, course.id, fetchImpl);
     assignments.push(
       ...courseAssignments.map((assignment) => normalizeCanvasAssignment(assignment, course)),

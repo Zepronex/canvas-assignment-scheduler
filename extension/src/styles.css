@@ -65,8 +65,8 @@ input:focus {
   align-items: stretch;
   background: #f7f7f4;
   display: flex;
-  min-height: 180px;
-  width: 340px;
+  min-height: 220px;
+  width: 380px;
 }
 
 .popup-panel {
@@ -75,6 +75,79 @@ input:focus {
   flex-direction: column;
   gap: 14px;
   padding: 18px;
+}
+
+.popup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.popup-actions button {
+  flex: 1;
+}
+
+.sync-time {
+  color: #667382;
+  font-size: 0.8rem;
+  margin: -2px 0 0;
+}
+
+.empty-state {
+  border: 1px dashed #cbd2d7;
+  border-radius: 6px;
+  color: #526070;
+  font-size: 0.9rem;
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+}
+
+.assignment-list {
+  border: 1px solid #d8dddf;
+  border-radius: 6px;
+  list-style: none;
+  margin: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.assignment-item {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e5e7;
+  padding: 12px;
+}
+
+.assignment-item:last-child {
+  border-bottom: 0;
+}
+
+.assignment-link {
+  color: #145a7a;
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 750;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.assignment-link:hover {
+  text-decoration: underline;
+}
+
+.assignment-course {
+  color: #526070;
+  font-size: 0.82rem;
+  margin: 3px 0 0;
+}
+
+.assignment-meta {
+  color: #344354;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  gap: 5px 12px;
+  margin: 7px 0 0;
 }
 
 .options-shell {
@@ -186,6 +259,7 @@ h1 {
 
 .status-saving,
 .status-testing,
+.status-syncing,
 .status-idle {
   background: #eef4f7;
   color: #29485a;

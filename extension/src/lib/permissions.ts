@@ -17,7 +17,7 @@ export async function ensureCanvasHostPermission(canvasUrl: string): Promise<voi
   const granted = await requestPermission(permission);
   if (!granted) {
     throw new CanvasHostPermissionError(
-      'Chrome needs permission to contact this Canvas site before testing the connection.',
+      'Allow this extension to contact your Canvas site, then try again.',
     );
   }
 }

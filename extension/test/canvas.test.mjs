@@ -244,6 +244,7 @@ test('syncCanvasAssignments aggregates and normalizes assignments from active co
       return jsonResponse([
         { id: 10, name: 'Algorithms' },
         { id: 20, name: 'Databases' },
+        { id: 30, name: 'Future course', access_restricted_by_date: true },
       ]);
     }
 
@@ -258,7 +259,7 @@ test('syncCanvasAssignments aggregates and normalizes assignments from active co
     throw new Error(`Unexpected URL: ${url}`);
   });
 
-  assert.equal(result.courses.length, 2);
+  assert.equal(result.courses.length, 3);
   assert.equal(result.assignments.length, 1);
   assert.equal(result.assignments[0].courseId, 10);
   assert.equal(result.assignments[0].courseName, 'Algorithms');

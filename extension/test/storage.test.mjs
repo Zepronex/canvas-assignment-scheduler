@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   clearAssignmentCache,
   getAssignmentCache,
+  saveSettings,
   saveAssignmentCache,
   STORAGE_KEYS,
 } from '../.test-build/lib/storage.js';
@@ -46,6 +47,43 @@ test('assignment cache ignores legacy and malformed values', async () => {
     assignments: [{ ...normalizedAssignment(), dueAt: 'not-a-date' }],
   });
   assert.equal(await getAssignmentCache(), null);
+});
+
+test('changing Canvas settings clears cache from the previous account', async () => {
+  const storedValues = installChromeStorage({
+    [STORAGE_KEYS.settings]: {
+      canvasUrl: 'https://old-canvas.example.edu',
+      canvasToken: 'old-token',
+    },
+    [STORAGE_KEYS.assignmentCache]: assignmentSyncResult(),
+  });
+
+  await saveSettings({
+    canvasUrl: ' https://new-canvas.example.edu ',
+    canvasToken: ' new-token ',
+  });
+
+  assert.equal(storedValues[STORAGE_KEYS.assignmentCache], undefined);
+  assert.deepEqual(storedValues[STORAGE_KEYS.settings], {
+    canvasUrl: 'https://new-canvas.example.edu',
+    canvasToken: 'new-token',
+  });
+});
+
+test('saving unchanged Canvas settings preserves the current cache', async () => {
+  const result = assignmentSyncResult();
+  const settings = {
+    canvasUrl: 'https://canvas.example.edu',
+    canvasToken: 'token-value',
+  };
+  const storedValues = installChromeStorage({
+    [STORAGE_KEYS.settings]: settings,
+    [STORAGE_KEYS.assignmentCache]: result,
+  });
+
+  await saveSettings(settings);
+
+  assert.deepEqual(storedValues[STORAGE_KEYS.assignmentCache], result);
 });
 
 function installChromeStorage(initialValues = {}) {

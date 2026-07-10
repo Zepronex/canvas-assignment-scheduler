@@ -28,10 +28,21 @@ export async function getSettings(): Promise<CanvasSettings> {
 }
 
 export async function saveSettings(settings: CanvasSettings): Promise<void> {
-  await setStoredValue(STORAGE_KEYS.settings, {
+  const normalizedSettings = {
     canvasUrl: settings.canvasUrl.trim(),
     canvasToken: settings.canvasToken.trim(),
-  });
+  };
+  const storedSettings = await getStoredValue<CanvasSettings>(STORAGE_KEYS.settings);
+
+  if (
+    !storedSettings ||
+    storedSettings.canvasUrl !== normalizedSettings.canvasUrl ||
+    storedSettings.canvasToken !== normalizedSettings.canvasToken
+  ) {
+    await clearAssignmentCache();
+  }
+
+  await setStoredValue(STORAGE_KEYS.settings, normalizedSettings);
 }
 
 export async function clearSettings(): Promise<void> {
