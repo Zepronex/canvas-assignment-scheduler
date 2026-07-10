@@ -17,5 +17,5 @@
     "alarms",
     "notifications"
   ],
-  "host_permissions": ["https://*.instructure.com/*"]
+  "optional_host_permissions": ["https://*/*"]
 }

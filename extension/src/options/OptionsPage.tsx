@@ -1,12 +1,15 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { normalizeCanvasUrl } from '../lib/canvas';
+import { normalizeCanvasBaseUrl, validateCanvasConnection } from '../lib/canvas';
+import { ensureCanvasHostPermission } from '../lib/permissions';
 import { getSettings, saveSettings } from '../lib/storage';
 import type { CanvasSettings } from '../types';
 
 type SaveStatus =
   | { state: 'idle'; message: '' }
   | { state: 'saving'; message: 'Saving settings...' }
+  | { state: 'testing'; message: 'Testing connection...' }
   | { state: 'saved'; message: 'Settings saved locally.' }
+  | { state: 'connected'; message: string }
   | { state: 'error'; message: string };
 
 const EMPTY_STATUS: SaveStatus = { state: 'idle', message: '' };
@@ -17,6 +20,9 @@ export function OptionsPage() {
     canvasToken: '',
   });
   const [status, setStatus] = useState<SaveStatus>(EMPTY_STATUS);
+  const isSaving = status.state === 'saving';
+  const isTesting = status.state === 'testing';
+  const isBusy = isSaving || isTesting;
 
   useEffect(() => {
     let isMounted = true;
@@ -43,14 +49,21 @@ export function OptionsPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const canvasUrl = normalizeCanvasUrl(settings.canvasUrl);
-    const canvasToken = settings.canvasToken.trim();
+    let canvasUrl: string;
 
-    if (!canvasUrl || !canvasToken) {
+    try {
+      canvasUrl = normalizeCanvasBaseUrl(settings.canvasUrl);
+    } catch (error) {
       setStatus({
         state: 'error',
-        message: 'Enter both a Canvas URL and API token.',
+        message: getErrorMessage(error, 'Enter a valid Canvas URL.'),
       });
+      return;
+    }
+
+    const canvasToken = settings.canvasToken.trim();
+    if (!canvasToken) {
+      setStatus({ state: 'error', message: 'Enter a Canvas API token.' });
       return;
     }
 
@@ -64,6 +77,41 @@ export function OptionsPage() {
       setStatus({
         state: 'error',
         message: error instanceof Error ? error.message : 'Unable to save settings.',
+      });
+    }
+  };
+
+  const handleTestConnection = async () => {
+    let canvasUrl: string;
+
+    try {
+      canvasUrl = normalizeCanvasBaseUrl(settings.canvasUrl);
+    } catch (error) {
+      setStatus({
+        state: 'error',
+        message: getErrorMessage(error, 'Enter a valid Canvas URL.'),
+      });
+      return;
+    }
+
+    const canvasToken = settings.canvasToken.trim();
+    if (!canvasToken) {
+      setStatus({ state: 'error', message: 'Enter a Canvas API token.' });
+      return;
+    }
+
+    setStatus({ state: 'testing', message: 'Testing connection...' });
+
+    try {
+      await ensureCanvasHostPermission(canvasUrl);
+      const user = await validateCanvasConnection({ canvasUrl, canvasToken });
+
+      setSettings({ canvasUrl, canvasToken });
+      setStatus({ state: 'connected', message: `Connected as ${user.name}` });
+    } catch (error) {
+      setStatus({
+        state: 'error',
+        message: getErrorMessage(error, 'Unable to test the Canvas connection.'),
       });
     }
   };
@@ -83,7 +131,8 @@ export function OptionsPage() {
           <label>
             <span>Canvas URL</span>
             <input
-              type="url"
+              type="text"
+              inputMode="url"
               value={settings.canvasUrl}
               onChange={(event) => setSettings((current) => ({ ...current, canvasUrl: event.target.value }))}
               placeholder="https://your-school.instructure.com"
@@ -104,9 +153,15 @@ export function OptionsPage() {
             />
           </label>
 
-          <button type="submit" disabled={status.state === 'saving'}>
-            {status.state === 'saving' ? 'Saving...' : 'Save settings'}
-          </button>
+          <div className="settings-actions">
+            <button type="submit" disabled={isBusy}>
+              {isSaving ? 'Saving...' : 'Save settings'}
+            </button>
+
+            <button type="button" className="secondary-button" onClick={handleTestConnection} disabled={isBusy}>
+              {isTesting ? 'Testing...' : 'Test connection'}
+            </button>
+          </div>
         </form>
 
         {status.message && (
@@ -117,4 +172,8 @@ export function OptionsPage() {
       </section>
     </main>
   );
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }

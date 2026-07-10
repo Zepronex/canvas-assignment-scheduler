@@ -145,8 +145,22 @@ h1 {
 }
 
 .settings-form button {
-  align-self: flex-start;
   min-width: 140px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.secondary-button {
+  background: #eef4f7;
+  color: #145a7a;
+}
+
+.secondary-button:hover {
+  background: #dbe9ef;
 }
 
 .status-message {
@@ -165,7 +179,13 @@ h1 {
   color: #195c36;
 }
 
+.status-connected {
+  background: #e8f3ed;
+  color: #195c36;
+}
+
 .status-saving,
+.status-testing,
 .status-idle {
   background: #eef4f7;
   color: #29485a;
