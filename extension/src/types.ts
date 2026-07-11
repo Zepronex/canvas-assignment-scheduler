@@ -38,6 +38,8 @@ export interface AssignmentSyncResult {
   courses: CanvasCourse[];
   assignments: NormalizedAssignment[];
   lastSyncedAt: string;
+  /** Optional only for compatibility with caches created before partial sync support. */
+  failedCourseCount?: number;
 }
 
 export type AssignmentNotes = Record<string, string>;

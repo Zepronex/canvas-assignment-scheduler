@@ -263,7 +263,55 @@ test('syncCanvasAssignments aggregates and normalizes assignments from active co
   assert.equal(result.assignments.length, 1);
   assert.equal(result.assignments[0].courseId, 10);
   assert.equal(result.assignments[0].courseName, 'Algorithms');
+  assert.equal(result.failedCourseCount, 0);
   assert.equal(new Date(result.lastSyncedAt).toISOString(), result.lastSyncedAt);
+});
+
+test('syncCanvasAssignments keeps successful course results when another course fails', async () => {
+  const result = await syncCanvasAssignments(canvasSettings(), async (url) => {
+    const parsedUrl = new URL(url);
+
+    if (parsedUrl.pathname === '/api/v1/courses') {
+      return jsonResponse([
+        { id: 10, name: 'Algorithms' },
+        { id: 20, name: 'Databases' },
+      ]);
+    }
+
+    if (parsedUrl.pathname === '/api/v1/courses/10/assignments') {
+      return jsonResponse([canvasAssignment({ course_id: 10 })]);
+    }
+
+    if (parsedUrl.pathname === '/api/v1/courses/20/assignments') {
+      return new Response('', { status: 503 });
+    }
+
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  assert.equal(result.failedCourseCount, 1);
+  assert.deepEqual(
+    result.assignments.map(({ courseId }) => courseId),
+    [10],
+  );
+});
+
+test('syncCanvasAssignments rejects when every syncable course fails', async () => {
+  await assert.rejects(
+    syncCanvasAssignments(canvasSettings(), async (url) => {
+      const parsedUrl = new URL(url);
+
+      if (parsedUrl.pathname === '/api/v1/courses') {
+        return jsonResponse([
+          { id: 10, name: 'Algorithms' },
+          { id: 20, name: 'Databases' },
+        ]);
+      }
+
+      return new Response('', { status: 503 });
+    }),
+    isCanvasError('unexpected-response'),
+  );
 });
 
 function jsonResponse(payload, init = {}) {

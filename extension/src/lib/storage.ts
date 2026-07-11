@@ -162,7 +162,8 @@ function isAssignmentSyncResult(value: unknown): value is AssignmentSyncResult {
     !isRecord(value) ||
     !Array.isArray(value.courses) ||
     !Array.isArray(value.assignments) ||
-    !isTimestamp(value.lastSyncedAt)
+    !isTimestamp(value.lastSyncedAt) ||
+    (value.failedCourseCount !== undefined && !isNonNegativeInteger(value.failedCourseCount))
   ) {
     return false;
   }
@@ -210,6 +211,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isNonEmptyString(value: unknown): value is string {
