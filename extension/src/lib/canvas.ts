@@ -277,7 +277,7 @@ export async function syncCanvasAssignments(
   if (syncableCourses.length > 0 && failedCourseCount === syncableCourses.length) {
     throw new CanvasConnectionError(
       'unexpected-response',
-      'Canvas assignments could not be loaded from any active course. Your previous cache was kept.',
+      'Canvas assignments could not be loaded from any active course.',
     );
   }
 
