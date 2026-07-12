@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Canvas Deadline Copilot",
-  "description": "Privacy-first Canvas deadline tracking for Chrome.",
+  "description": "View Canvas assignment deadlines, export calendar events, and schedule optional Chrome reminders.",
   "version": "1.0.0",
   "action": {
     "default_title": "Canvas Deadline Copilot",

@@ -17,6 +17,8 @@ test('rejects unsafe, credential-bearing, and malformed external links', () => {
     'javascript:alert(1)',
     'data:text/html,unsafe',
     'https://user:password@canvas.example.edu/assignment/7',
+    'https://*.example.edu/assignment/7',
+    'https://*',
     'not a URL',
   ]) {
     assert.equal(getSafeHttpsUrl(value), null);

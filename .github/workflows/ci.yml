@@ -40,5 +40,5 @@ jobs:
       - name: Run typecheck
         run: pnpm typecheck
 
-      - name: Build extension
-        run: pnpm build
+      - name: Build and validate release package
+        run: pnpm package

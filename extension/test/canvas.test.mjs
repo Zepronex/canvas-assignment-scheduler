@@ -8,7 +8,6 @@ import {
   fetchPaginatedCanvasGet,
   normalizeCanvasBaseUrl,
   normalizeCanvasAssignment,
-  normalizeCanvasUrl,
   parseCanvasLinkHeader,
   syncCanvasAssignments,
   validateCanvasConnection,
@@ -25,10 +24,8 @@ test('normalizeCanvasBaseUrl rejects invalid or unsafe URLs', () => {
   assertCanvasError(() => normalizeCanvasBaseUrl(''), 'invalid-url');
   assertCanvasError(() => normalizeCanvasBaseUrl('http://canvas.example.edu'), 'invalid-url');
   assertCanvasError(() => normalizeCanvasBaseUrl('https://token:secret@canvas.example.edu'), 'invalid-url');
-});
-
-test('normalizeCanvasUrl keeps the legacy empty-string fallback', () => {
-  assert.equal(normalizeCanvasUrl('not a valid host name'), '');
+  assertCanvasError(() => normalizeCanvasBaseUrl('https://*.example.edu'), 'invalid-url');
+  assertCanvasError(() => normalizeCanvasBaseUrl('https://*'), 'invalid-url');
 });
 
 test('validateCanvasConnection returns the Canvas self profile', async () => {
@@ -207,6 +204,15 @@ test('fetchCanvasAssignmentsForCourse rejects timezone-less Canvas timestamps', 
   await assert.rejects(
     fetchCanvasAssignmentsForCourse(canvasSettings(), 42, async () =>
       jsonResponse([canvasAssignment({ due_at: '2026-07-12T14:00:00' })]),
+    ),
+    isCanvasError('unexpected-response'),
+  );
+});
+
+test('fetchCanvasAssignmentsForCourse rejects assignments from a different course', async () => {
+  await assert.rejects(
+    fetchCanvasAssignmentsForCourse(canvasSettings(), 42, async () =>
+      jsonResponse([canvasAssignment({ course_id: 99 })]),
     ),
     isCanvasError('unexpected-response'),
   );

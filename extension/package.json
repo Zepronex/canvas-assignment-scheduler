@@ -2,6 +2,7 @@
   "name": "canvas-deadline-copilot",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.15.1",
   "scripts": {

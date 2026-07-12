@@ -1,20 +1,21 @@
 # Canvas Deadline Copilot release checklist
 
-Use this checklist for version 1.0.0 and adapt it for later releases. It is intentionally stricter than “the build succeeds.” Do not submit the extension to the Chrome Web Store until every blocking policy, security, privacy, artifact, and publisher item is resolved.
+Use this checklist for version 1.0.0 and adapt it for later releases. It is intentionally stricter than “the build succeeds.” Version 1.0.0 has not been submitted to or published on the Chrome Web Store. Do not submit it until every blocking policy, security, privacy, artifact, and publisher item is resolved.
 
 ## Blocking policy and security decisions
 
 - [ ] **Resolve the Canvas authentication-policy blocker.** Instructure's current [OAuth2 guidance](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth) describes manually generated access tokens as a testing mechanism, says asking another user to generate and enter one violates Canvas API Policy, and states that multi-user applications must use OAuth. Obtain a documented policy determination or approval from Instructure and affected institutions, or revise the authentication/distribution plan before public submission.
 - [ ] **Reconcile token storage with Chrome Web Store secure-handling requirements.** Version 1.0.0 stores the Canvas API token in <code>chrome.storage.local</code> without application-level encryption. Review the current [Chrome Web Store user-data and secure-handling rules](https://developer.chrome.com/docs/webstore/user_data) and obtain an explicit compliance/security determination. Do not imply that the token is encrypted.
 - [ ] Confirm the extension's in-product credential disclosure and consent flow satisfy current Chrome Web Store disclosure requirements before the token is stored.
+- [ ] Confirm the hosted privacy policy retains the affirmative statement that the extension's use of user data complies with the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/user_data), including its [Limited Use requirements](https://developer.chrome.com/docs/webstore/program-policies/limited-use), and that the shipped data flows still support that statement.
 - [ ] Confirm the publisher has the right to distribute the extension name, icon, screenshots, promotional artwork, and all referenced trademarks. Keep the independent, non-affiliation wording.
 - [ ] Record the decision and reviewer for each blocker in the release ticket.
 
 ## Scope and source control
 
-- [ ] Confirm the release contains no email reminders, hosted backend, automatic calendar synchronization, submission/completion fetching, or other unsupported feature claim.
-- [ ] Confirm the release scope is <code>extension/</code>; the legacy <code>frontend/</code>, <code>backend/</code>, <code>.temp/</code>, repository docs, and development dependencies must not enter the ZIP.
-- [ ] Review all commits intended for the release and confirm they are logical, professional, and limited to Day 7 hardening/release work.
+- [ ] Confirm the release contains no OAuth, email reminders, hosted backend, automatic Canvas or calendar synchronization, submission/completion fetching, analytics, telemetry, or other unsupported feature claim.
+- [ ] Confirm this is an extension-only repository and that repository docs, tests, source files, scripts, and development dependencies do not enter the runtime ZIP.
+- [ ] Review all commits intended for the release and confirm they are logical, professional, and limited to final cleanup and release preparation.
 - [ ] Confirm no unrelated user work was overwritten.
 - [ ] Confirm generated <code>extension/dist/</code>, <code>extension/.test-build/</code>, and <code>extension/release/</code> output is ignored by Git.
 - [ ] Finish with <code>git status --short</code> showing a clean worktree.
@@ -79,11 +80,14 @@ git diff --check
 
 - [ ] Dependency installation succeeds with the committed lockfile.
 - [ ] All tests pass.
+- [ ] The final suite reports exactly 83 passing tests with no failures, skips, cancellations, or TODOs.
 - [ ] Typechecking passes.
 - [ ] The production build passes.
 - [ ] Packaging passes and creates <code>extension/release/canvas-deadline-copilot-1.0.0.zip</code>.
 - [ ] <code>git diff --check</code> reports no whitespace errors.
-- [ ] The GitHub Actions workflow is green for the final commit on both push and pull-request coverage.
+- [ ] The GitHub Actions workflow is green for the final commit on both push and pull-request coverage. It installs the frozen lockfile, runs the 83 tests, typechecks, and runs <code>pnpm package</code>.
+- [ ] Confirm <code>pnpm package</code> performs the production build, validates the distribution and manifest references, creates the ZIP, and verifies its file list.
+- [ ] Confirm CI does not upload the ZIP, publish a GitHub release, deploy, or submit to the Chrome Web Store; it is continuous integration and packaging validation, not continuous deployment.
 - [ ] Review dependency vulnerability output using an approved current scanner; document any accepted risk without placing sensitive values in logs.
 
 ## ZIP inspection
@@ -97,7 +101,7 @@ unzip -Z1 release/canvas-deadline-copilot-1.0.0.zip
 - [ ] ZIP integrity passes.
 - [ ] <code>manifest.json</code> is at the archive root and reports version 1.0.0.
 - [ ] The archive root contains only the built manifest, background worker, popup/options HTML, 16/32/48/128 icons, and the generated <code>assets/</code> directory.
-- [ ] The ZIP contains no TypeScript/JSX source, source maps, tests, fixtures, docs, lockfiles, package manifests, Git metadata, development-server files, dependency directories, logs, environment files, or legacy application files.
+- [ ] The ZIP contains no TypeScript/JSX source, source maps, tests, fixtures, docs, lockfiles, package manifests, Git metadata, development-server files, dependency directories, logs, environment files, or non-runtime repository files.
 - [ ] The ZIP contains no API credentials, authorization-header values, personal Canvas domains, real course/assignment/user data, screenshots with personal data, or workspace-specific paths.
 - [ ] Run a secret scanner configured to report file names or locations without echoing matched secret values. Investigate every hit.
 - [ ] Search for development markers and local paths without printing potentially sensitive matched content.
@@ -139,8 +143,9 @@ Use a clean Chrome profile and synthetic or dedicated test Canvas data.
 - [ ] A result containing only assignments without due dates explains reminder/export limitations while still listing the assignments.
 - [ ] Active filters with zero matches show a clear-filters action.
 - [ ] Search, course selection, all status filters, counts, and clear-filters behavior are correct.
-- [ ] A partial course failure retains successful courses and displays/stores the concise warning.
-- [ ] A total sync failure preserves the prior cache.
+- [ ] Valid unpublished records may be fetched and cached, but the dashboard and calendar actions exclude them.
+- [ ] A partial course failure replaces the prior cache with the current successful-course results and displays/stores the concise warning; it does not merge current results with stale assignments.
+- [ ] A course-fetch failure or failure of every syncable course assignment request preserves the prior cache.
 - [ ] A background-message failure does not make an otherwise successful sync fail.
 - [ ] Corrupted cache/settings/history values recover to safe defaults and are removed or sanitized best effort.
 
@@ -149,8 +154,9 @@ Use a clean Chrome profile and synthetic or dedicated test Canvas data.
 - [ ] Reminders default to off.
 - [ ] Enabling requires at least one of 7 days, 24 hours, 2 hours, or 30 minutes.
 - [ ] Published future assignments schedule the selected windows.
-- [ ] Overdue, unpublished, no-date, invalid-date, and already-missed windows do not schedule notifications.
+- [ ] Overdue, unpublished, no-date, invalid-date, and already-missed windows do not create new reminder alarms during reconciliation; missed windows are not reconstructed retroactively.
 - [ ] Alarms reconstruct after browser restart, extension reload/update, service-worker restart, cache change, and reminder-setting change.
+- [ ] Verify and document that Chrome may fire an already scheduled alarm late, such as after device sleep; it may notify before the due time if validation still passes, but is suppressed after the due time.
 - [ ] Duplicate delivery history suppresses a second notification.
 - [ ] Notification failure does not record a reminder as delivered.
 - [ ] Notification title/body contain only assignment name, course, due time, and reminder label.
@@ -202,4 +208,4 @@ Use a clean Chrome profile and synthetic or dedicated test Canvas data.
 - [ ] Confirm the Canvas authentication-policy and token-storage blockers at the top of this checklist are formally closed.
 - [ ] Record remaining limitations and approved risks.
 - [ ] Obtain publisher approval.
-- [ ] Do not submit as part of Day 7; preserve the verified ZIP and release record for the separate submission step.
+- [ ] Keep the verified ZIP and release record for a separate, manual submission step. Do not submit or claim publication until all blockers are closed and the publisher explicitly approves submission.

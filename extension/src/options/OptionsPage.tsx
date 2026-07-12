@@ -1,18 +1,11 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import {
-  CanvasConnectionError,
-  normalizeCanvasBaseUrl,
-  validateCanvasConnection,
-} from '../lib/canvas';
+import { normalizeCanvasBaseUrl, validateCanvasConnection } from '../lib/canvas';
 import {
   getExtensionDiagnostics,
   type ExtensionDiagnostics,
 } from '../lib/diagnostics';
-import {
-  CanvasHostPermissionError,
-  ensureCanvasHostPermission,
-  revokeCanvasHostPermission,
-} from '../lib/permissions';
+import { getConnectionErrorMessage } from '../lib/errors';
+import { ensureCanvasHostPermission, revokeCanvasHostPermission } from '../lib/permissions';
 import { DEFAULT_REMINDER_SETTINGS, REMINDER_WINDOW_OPTIONS } from '../lib/reminders';
 import {
   clearAssignmentCache,
@@ -160,7 +153,7 @@ export function OptionsPage() {
     } catch (error) {
       setStatus({
         state: 'error',
-        message: getSafeErrorMessage(error, 'Enter a valid HTTPS Canvas URL.'),
+        message: getConnectionErrorMessage(error, 'Enter a valid HTTPS Canvas URL.'),
       });
       return;
     }
@@ -211,7 +204,7 @@ export function OptionsPage() {
     } catch (error) {
       setStatus({
         state: 'error',
-        message: getSafeErrorMessage(error, 'Unable to save Canvas settings.'),
+        message: getConnectionErrorMessage(error, 'Unable to save Canvas settings.'),
       });
     }
   };
@@ -224,7 +217,7 @@ export function OptionsPage() {
     } catch (error) {
       setStatus({
         state: 'error',
-        message: getSafeErrorMessage(error, 'Enter a valid HTTPS Canvas URL.'),
+        message: getConnectionErrorMessage(error, 'Enter a valid HTTPS Canvas URL.'),
       });
       return;
     }
@@ -278,7 +271,7 @@ export function OptionsPage() {
       );
       setStatus({
         state: 'error',
-        message: getSafeErrorMessage(error, 'Unable to test the Canvas connection.'),
+        message: getConnectionErrorMessage(error, 'Unable to test the Canvas connection.'),
       });
     }
   };
@@ -303,7 +296,7 @@ export function OptionsPage() {
     } catch (error) {
       setReminderStatus({
         state: 'error',
-        message: getSafeErrorMessage(error, 'Unable to save reminder settings.'),
+        message: getConnectionErrorMessage(error, 'Unable to save reminder settings.'),
       });
     }
   };
@@ -336,7 +329,7 @@ export function OptionsPage() {
     } catch (error) {
       setDataStatus({
         state: 'error',
-        message: getSafeErrorMessage(error, 'Unable to clear cached assignments.'),
+        message: getConnectionErrorMessage(error, 'Unable to clear cached assignments.'),
       });
     }
   };
@@ -381,7 +374,7 @@ export function OptionsPage() {
     } catch (error) {
       setDataStatus({
         state: 'error',
-        message: getSafeErrorMessage(error, 'Unable to clear saved Canvas credentials.'),
+        message: getConnectionErrorMessage(error, 'Unable to clear saved Canvas credentials.'),
       });
     }
   };
@@ -695,12 +688,6 @@ function resolveCanvasToken(
   return savedSettings?.canvasUrl === normalizedCanvasUrl
     ? savedSettings.canvasToken
     : null;
-}
-
-function getSafeErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof CanvasConnectionError || error instanceof CanvasHostPermissionError
-    ? error.message
-    : fallback;
 }
 
 function configuredConnectionStatus(canvasUrl: string): ConnectionStatus {

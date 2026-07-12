@@ -1,9 +1,7 @@
 import type {
-  AssignmentSortBy,
   AssignmentStatus,
   AssignmentStatusFilter,
   NormalizedAssignment,
-  SortOrder,
 } from '../types';
 
 export type AssignmentStatusCounts = Record<AssignmentStatusFilter, number>;
@@ -12,8 +10,6 @@ export interface AssignmentFilterOptions {
   selectedCourseId?: number | null;
   searchQuery?: string;
   statusFilter?: AssignmentStatusFilter;
-  sortBy?: AssignmentSortBy;
-  sortOrder?: SortOrder;
   now?: Date;
 }
 
@@ -25,8 +21,6 @@ export function filterAndSortAssignments(
     selectedCourseId = null,
     searchQuery = '',
     statusFilter = 'all',
-    sortBy = 'date',
-    sortOrder = 'asc',
     now = new Date(),
   } = options;
 
@@ -49,14 +43,7 @@ export function filterAndSortAssignments(
     );
   }
 
-  return filtered.sort((first, second) => {
-    const comparison =
-      sortBy === 'date'
-        ? compareAssignmentDates(first, second)
-        : first.courseName.localeCompare(second.courseName);
-
-    return sortOrder === 'asc' ? comparison : -comparison;
-  });
+  return filtered.sort(compareAssignmentDates);
 }
 
 export function getAssignmentStatus(
@@ -81,31 +68,6 @@ export function getAssignmentStatus(
   }
 
   return dueDate < now ? 'overdue' : 'upcoming';
-}
-
-export function isOverdueAssignment(
-  assignment: NormalizedAssignment,
-  now: Date = new Date(),
-): boolean {
-  return getAssignmentStatus(assignment, now) === 'overdue';
-}
-
-export function isDueTodayAssignment(
-  assignment: NormalizedAssignment,
-  now: Date = new Date(),
-): boolean {
-  return getAssignmentStatus(assignment, now) === 'today';
-}
-
-export function isUpcomingAssignment(
-  assignment: NormalizedAssignment,
-  now: Date = new Date(),
-): boolean {
-  return getAssignmentStatus(assignment, now) === 'upcoming';
-}
-
-export function hasNoDueDate(assignment: NormalizedAssignment): boolean {
-  return getAssignmentStatus(assignment) === 'no-date';
 }
 
 export function getAssignmentStatusCounts(
@@ -135,12 +97,6 @@ export function getAssignmentStatusCounts(
 
 export function isPublishedAssignment(assignment: NormalizedAssignment): boolean {
   return assignment.workflowState.toLowerCase() === 'published';
-}
-
-export function sortAssignmentsByDueDate(
-  assignments: NormalizedAssignment[],
-): NormalizedAssignment[] {
-  return [...assignments].sort(compareAssignmentDates);
 }
 
 function compareAssignmentDates(first: NormalizedAssignment, second: NormalizedAssignment): number {

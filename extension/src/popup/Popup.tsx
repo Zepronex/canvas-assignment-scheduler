@@ -5,16 +5,10 @@ import {
   getAssignmentStatusCounts,
 } from '../lib/assignments';
 import { downloadICS, generateGoogleCalendarUrl } from '../lib/calendar';
-import {
-  CanvasConnectionError,
-  hasCanvasSettings,
-  syncCanvasAssignments,
-} from '../lib/canvas';
+import { hasCanvasSettings, syncCanvasAssignments } from '../lib/canvas';
 import { formatPartialSyncWarning } from '../lib/diagnostics';
-import {
-  CanvasHostPermissionError,
-  ensureCanvasHostPermission,
-} from '../lib/permissions';
+import { getConnectionErrorMessage } from '../lib/errors';
+import { ensureCanvasHostPermission } from '../lib/permissions';
 import { notifyAssignmentsUpdated } from '../lib/messages';
 import {
   getAssignmentCache,
@@ -176,7 +170,10 @@ export function Popup() {
       setSyncResult(nextResult);
       setClassificationTime(new Date());
     } catch (error) {
-      const message = getErrorMessage(error, 'Unable to sync assignments from Canvas.');
+      const message = getConnectionErrorMessage(
+        error,
+        'Unable to sync assignments from Canvas.',
+      );
       setSyncError(syncResult ? `${message} Cached assignments are unchanged.` : message);
     } finally {
       setIsSyncing(false);
@@ -643,10 +640,4 @@ function formatDueDate(value: string | null, status: AssignmentStatus): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   })}`;
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof CanvasConnectionError || error instanceof CanvasHostPermissionError
-    ? error.message
-    : fallback;
 }

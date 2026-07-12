@@ -1,5 +1,9 @@
 export const ASSIGNMENTS_UPDATED_MESSAGE = 'canvas-deadline:assignments-updated';
 
+export interface AssignmentsUpdatedMessage {
+  type: typeof ASSIGNMENTS_UPDATED_MESSAGE;
+}
+
 export async function notifyAssignmentsUpdated(): Promise<void> {
   try {
     if (
@@ -10,8 +14,9 @@ export async function notifyAssignmentsUpdated(): Promise<void> {
       return;
     }
 
+    const message: AssignmentsUpdatedMessage = { type: ASSIGNMENTS_UPDATED_MESSAGE };
     const sendResult = chrome.runtime.sendMessage(
-      { type: ASSIGNMENTS_UPDATED_MESSAGE },
+      message,
       () => {
         try {
           void chrome.runtime.lastError;
@@ -27,6 +32,17 @@ export async function notifyAssignmentsUpdated(): Promise<void> {
   } catch {
     // A stopped or unavailable service worker must not turn a successful sync into an error.
   }
+}
+
+export function isAssignmentsUpdatedMessage(
+  value: unknown,
+): value is AssignmentsUpdatedMessage {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      'type' in value &&
+      value.type === ASSIGNMENTS_UPDATED_MESSAGE,
+  );
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {

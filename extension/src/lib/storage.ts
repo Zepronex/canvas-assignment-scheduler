@@ -1,5 +1,4 @@
 import type {
-  AssignmentNotes,
   AssignmentSyncResult,
   CanvasCourse,
   CanvasSettings,
@@ -14,7 +13,6 @@ import { getSafeHttpsUrl, isSafeHttpsUrl } from './urls.js';
 export const STORAGE_KEYS = {
   settings: 'settings',
   assignmentCache: 'assignmentCache',
-  assignmentNotes: 'assignmentNotes',
   reminderSettings: 'reminderSettings',
   reminderDeliveryHistory: 'reminderDeliveryHistory',
 } as const;
@@ -22,7 +20,6 @@ export const STORAGE_KEYS = {
 interface LocalStorageSchema {
   [STORAGE_KEYS.settings]: CanvasSettings;
   [STORAGE_KEYS.assignmentCache]: AssignmentSyncResult;
-  [STORAGE_KEYS.assignmentNotes]: AssignmentNotes;
   [STORAGE_KEYS.reminderSettings]: ReminderSettings;
   [STORAGE_KEYS.reminderDeliveryHistory]: ReminderDeliveryHistory;
 }
@@ -65,39 +62,6 @@ export async function saveSettings(settings: CanvasSettings): Promise<void> {
 
 export async function clearSettings(): Promise<void> {
   await removeStoredValue(STORAGE_KEYS.settings);
-}
-
-export async function getAssignmentNotes(): Promise<AssignmentNotes> {
-  const notes = await getStoredValue<unknown>(STORAGE_KEYS.assignmentNotes);
-  if (notes === undefined || isStringRecord(notes)) {
-    return notes ?? {};
-  }
-
-  await discardCorruptedValue(STORAGE_KEYS.assignmentNotes);
-  return {};
-}
-
-export async function saveAssignmentNote(
-  assignmentId: NormalizedAssignment['id'],
-  note: string,
-): Promise<void> {
-  const notes = await getAssignmentNotes();
-  const nextNotes = {
-    ...notes,
-    [assignmentId]: note,
-  };
-
-  await setStoredValue(STORAGE_KEYS.assignmentNotes, nextNotes);
-}
-
-export async function deleteAssignmentNote(
-  assignmentId: NormalizedAssignment['id'],
-): Promise<void> {
-  const notes = await getAssignmentNotes();
-  const nextNotes = { ...notes };
-  delete nextNotes[assignmentId];
-
-  await setStoredValue(STORAGE_KEYS.assignmentNotes, nextNotes);
 }
 
 export async function getAssignmentCache(): Promise<AssignmentSyncResult | null> {
@@ -277,14 +241,6 @@ function getChromeStorage(): chrome.storage.StorageArea {
   }
 
   return chrome.storage.local;
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-
-  return Object.values(value).every((item) => typeof item === 'string');
 }
 
 function cloneDefaultReminderSettings(): ReminderSettings {

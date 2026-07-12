@@ -1,221 +1,278 @@
 # Canvas Deadline Copilot
 
-Canvas Deadline Copilot is a compact Chrome extension for reviewing assignment deadlines from a user-configured Canvas LMS site. It manually syncs published assignments, keeps a validated local cache, offers optional browser reminders, and provides user-initiated calendar exports.
+Canvas Deadline Copilot is a Manifest V3 Chrome extension for reviewing assignment deadlines from one user-configured Canvas LMS site. It brings deadline metadata from multiple active courses into a compact popup, where the user can search and filter assignments, create calendar exports, and optionally schedule local browser reminders.
 
-The extension has no hosted runtime backend, analytics, advertising, or automatic calendar integration. Canvas and Google Calendar are separate services with their own terms and privacy practices. This project is independent and is not affiliated with or endorsed by Instructure or Google.
+The extension is intentionally manual and local-first. It has no scheduled Canvas synchronization, Canvas or Google OAuth, hosted backend, email delivery, analytics, advertising, telemetry, submission-status lookup, or automatic calendar synchronization. It is an independent project and is not affiliated with or endorsed by Instructure, Canvas, Google, or Chrome.
 
-The Chrome Web Store release is built only from <code>extension/</code>. The repository's legacy <code>frontend/</code>, <code>backend/</code>, and development files are not part of the packaged extension.
+## Problem
 
-## Key features
+Canvas separates deadlines across course pages, while students often need one deadline-oriented view. This extension consolidates assignment metadata from the active courses available to one Canvas account into a locally cached dashboard without operating a credential-handling backend.
 
-- Manual assignment sync from active Canvas courses over HTTPS.
-- Local deadline dashboard with assignment-name search, course filtering, and overdue, today, upcoming, and no-date views.
-- Resilient partial syncs that preserve assignments from courses that succeeded.
-- Optional Chrome notifications at 7 days, 24 hours, 2 hours, or 30 minutes before a deadline.
-- Reminder reconstruction after Chrome starts, the extension updates, or relevant local data changes.
-- Individual or bulk ICS downloads for assignments with valid due dates.
-- Explicit per-assignment Google Calendar template links.
-- Non-sensitive diagnostics for connection state, reminder settings, last successful sync, cache size, scheduled alarms, and partial-sync warnings.
-- Separately confirmed controls for clearing cached assignments or saved Canvas credentials.
-- Safe fallbacks for invalid settings, malformed cache data, unavailable background messaging, and Chrome API failures.
+## Implemented features
+
+- Configure an HTTPS Canvas origin and a manually created personal Canvas API token.
+- Request optional Chrome host access only for the exact configured Canvas origin when testing or synchronizing.
+- Manually fetch active courses and paginated assignment data through the Canvas REST API.
+- Validate and normalize assignment records before replacing the local cache.
+- Continue with a partial result when at least one course succeeds, while reporting the number of failed courses.
+- Preserve the previous cache when the course request fails or every syncable course fails.
+- Display published cached assignments with assignment-name search, course filtering, and overdue, due-today, upcoming, and no-due-date filters.
+- Show course, due time, points, and a validated Canvas assignment link.
+- Export one assignment or the currently filtered dated assignments as RFC 5545 ICS data.
+- Open a user-selected, prefilled Google Calendar event template without calendar-account access.
+- Schedule opt-in Chrome notifications at 7 days, 24 hours, 2 hours, or 30 minutes before eligible deadlines.
+- Recover safely from malformed settings, cache, and reminder history; expose non-sensitive diagnostics and separate controls for clearing credentials or cached assignments.
+
+## Screenshots
+
+Release screenshots have not been added to the repository yet. Before Chrome Web Store submission, replace these placeholders with captures of the shipping build using synthetic data only:
+
+1. **Popup dashboard placeholder** — published assignments, search, course/status filters, and calendar actions.
+2. **Settings placeholder** — Canvas connection state and reminder controls, with the token field empty.
+3. **Recovery-state placeholder** — a partial-sync warning or a meaningful empty state.
+
+See the synthetic-data and image requirements in the [store listing draft](docs/STORE_LISTING.md) and [release checklist](docs/RELEASE_CHECKLIST.md).
 
 ## Architecture
 
-Canvas Deadline Copilot is a Manifest V3 extension with three built entry points:
+Vite builds three Manifest V3 runtime entry points:
 
 | Component | Responsibility |
 | --- | --- |
-| Popup | Reads the local cache, starts a manual Canvas sync, filters assignments, and starts calendar actions. |
-| Options page | Configures the Canvas origin and token, tests the connection, manages reminders, shows diagnostics, and exposes local data controls. |
-| Canvas API client | Performs validated, paginated HTTPS requests directly to the exact Canvas origin authorized by the user. |
-| Local storage | Stores the Canvas connection, assignment snapshot, reminder preferences, and reminder delivery state in <code>chrome.storage.local</code>. |
-| Background service worker | Reconciles reminder alarms and handles notification delivery and clicks; it does not sync Canvas in the background. |
-| Calendar helpers | Generate local RFC 5545 ICS files or an explicit Google Calendar template URL without calendar-account permissions. |
+| Popup (`popup.html`) | Reads the local cache, starts manual synchronization, filters published assignments, and starts calendar actions. |
+| Options page (`options.html`) | Saves the Canvas origin/token, tests the connection, manages reminder preferences, shows diagnostics, and clears local data. |
+| Background service worker (`background.js`) | Reconciles deterministic Chrome alarms, delivers notifications, and handles safe notification clicks. It does not contact Canvas to synchronize assignments. |
+| Canvas client (`src/lib/canvas.ts`) | Builds same-origin HTTPS API requests, follows validated pagination links, parses Canvas responses, and normalizes assignments. |
+| Storage boundary (`src/lib/storage.ts`) | Validates settings, assignment snapshots, reminder preferences, and delivery history stored in `chrome.storage.local`. |
+| Pure domain helpers (`src/lib/`) | Classify/filter assignments, generate calendar data, derive reminder alarms, validate URLs, and sanitize errors outside the Chrome UI boundaries. |
 
-After a successful manual sync, the popup writes the validated cache and sends a data-free update signal. The service worker also observes the cache change and reconstructs the required Chrome alarms. Assignment data is read from local storage rather than copied into runtime messages.
+The principal data flow is:
 
-See [Architecture](docs/ARCHITECTURE.md) for component boundaries, storage keys, reminder reconstruction, calendar flows, and a message-flow diagram.
+1. The user saves an HTTPS Canvas origin and token in the options page.
+2. Testing or synchronizing requests Chrome permission for only that normalized origin. A connection test calls Canvas's current-user endpoint; it does not save the profile response.
+3. A popup-initiated sync fetches active courses, then each accessible course's assignments, following Canvas pagination.
+4. Valid records are normalized and saved as one local snapshot. The popup sends a data-free `assignments-updated` message; the service worker also observes storage changes.
+5. The service worker reconciles alarms from the cached snapshot and saved reminder preferences. The popup independently reads that snapshot for display and user-initiated calendar export.
+
+Service workers can stop while idle, so persisted storage and Chrome alarms are the durable state; in-memory queues only serialize work during the current worker lifetime. See [Architecture](docs/ARCHITECTURE.md) for storage keys, message flow, and detailed runtime boundaries.
 
 ## Technology stack
 
 - Chrome Extensions Manifest V3
-- React 18 and TypeScript
-- Vite 6
-- Chrome storage, permissions, alarms, and notifications APIs
-- Node.js 22 in CI
-- pnpm 10
-- Node's built-in test runner with mocked Chrome APIs
+- React 18 and React DOM
+- TypeScript 5
+- Vite 6 with the React plugin
+- Chrome storage, permissions, alarms, notifications, runtime messaging, and tab APIs
+- Node.js 22 and pnpm 10 in continuous integration
+- Node's built-in test runner with synthetic fixtures and mocked browser boundaries
+
+## Repository structure
+
+```text
+.
+├── .github/workflows/ci.yml       # Push and pull-request continuous integration
+├── docs/                          # Architecture, privacy, release, listing, and final-audit documents
+├── extension/
+│   ├── public/                    # Manifest V3 manifest and extension icons
+│   ├── scripts/                   # Deterministic package and package-validation scripts
+│   ├── src/
+│   │   ├── background/            # Service-worker entry point
+│   │   ├── lib/                   # Canvas, storage, reminder, calendar, URL, and error logic
+│   │   ├── options/               # React options-page entry point and UI
+│   │   └── popup/                 # React popup entry point and dashboard UI
+│   ├── test/                      # Node tests for domain and Chrome-boundary behavior
+│   ├── options.html               # Options-page Vite entry
+│   ├── popup.html                 # Popup Vite entry
+│   ├── package.json               # Scripts and dependency declarations
+│   ├── pnpm-lock.yaml             # Locked dependency graph
+│   └── vite.config.ts             # Three-entry production build configuration
+├── .gitignore                     # Excludes dependencies, credentials, maps, and generated output
+├── LICENSE                        # MIT license
+└── README.md
+```
+
+Only `extension/` contains runtime extension code. Generated `extension/dist/`, `extension/.test-build/`, and `extension/release/` directories are ignored and must not be committed.
 
 ## Local development
 
 Prerequisites:
 
-- A current Chrome or Chromium-based browser with Manifest V3 support
 - Node.js 22
-- pnpm 10
-- System <code>zip</code> and <code>unzip</code> commands when creating the release archive
+- pnpm 10 (the repository declares pnpm 10.15.1)
+- A current Chrome or Chromium browser with Manifest V3 support
+- System `zip` and `unzip` commands for release packaging
 
-Install the extension dependencies:
+Install the locked dependencies from the repository root:
 
-~~~bash
+```bash
 cd extension
 pnpm install --frozen-lockfile
-~~~
+```
 
-Build the extension:
+Run commands from `extension/`:
 
-~~~bash
-pnpm build
-~~~
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Start Vite for isolated UI development. A normal web tab cannot provide the full Chrome extension API environment. |
+| `pnpm test` | Compile test-targeted TypeScript and run the automated Node test suite. |
+| `pnpm typecheck` | Typecheck the extension without emitting files. |
+| `pnpm build` | Create the production extension in `extension/dist/`; source maps are disabled. |
+| `pnpm package` | Run a production build, validate its manifest and contents, and create the versioned release ZIP. |
 
-Vite also provides <code>pnpm dev</code> for isolated UI work. A normal Vite browser tab does not provide all Chrome extension APIs, so final behavior must be tested as a loaded unpacked extension.
+Run `git diff --check` from the repository root before submitting a change.
 
-## Build and load unpacked
+## Load the unpacked extension
 
-1. From <code>extension/</code>, run <code>pnpm build</code>.
-2. Open <code>chrome://extensions</code>.
+1. Run `pnpm build` from `extension/`.
+2. Open `chrome://extensions` in Chrome.
 3. Enable **Developer mode**.
-4. Choose **Load unpacked**.
-5. Select the generated <code>extension/dist</code> directory.
-6. After another build, use the extension card's **Reload** action before retesting.
+4. Select **Load unpacked**.
+5. Select the generated `extension/dist/` directory.
+6. Pin Canvas Deadline Copilot if desired, then open its popup.
+7. After subsequent builds, select **Reload** on the extension card before retesting.
 
-The production build contains the popup, options page, background worker, manifest, icons, and generated JavaScript/CSS assets. Source maps are disabled.
+The Vite development server is useful for UI iteration, but Canvas permission prompts, local extension storage, service-worker lifecycle behavior, alarms, notifications, and calendar handoffs require load-unpacked browser testing.
 
-To build and create the versioned release archive:
+## Configure a Canvas token
 
-~~~bash
-cd extension
-pnpm package
-~~~
+A Canvas API token is a credential with the access granted by the user's Canvas account. Keep it private, choose an expiration date when the institution permits one, and revoke it in Canvas if it may have been exposed. Institutions can disable personal token creation or impose additional rules.
 
-For version 1.0.0, the artifact is written to <code>extension/release/canvas-deadline-copilot-1.0.0.zip</code>. The packaging script validates the build, rejects source maps and unexpected files, stages only built extension assets, and verifies the ZIP file list. Generated <code>dist/</code> and <code>release/</code> output is ignored by Git.
-
-## Configure Canvas
-
-### Before creating a token
-
-An API token is equivalent to a credential and inherits the access granted by Canvas. Keep it private, use an expiration date where available, and revoke it from Canvas if the device or token might be compromised.
-
-Institutional settings differ. Some institutions disable manually generated tokens or impose additional rules. Instructure's current [OAuth2 guidance](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth) describes manual token generation as a testing mechanism and states that multi-user applications must use OAuth. A publisher must resolve that policy requirement before public distribution. The steps below are for a user configuring a local build where their institution permits a manually generated token.
-
-### Create and save a Canvas API token
+Where personal token creation is allowed:
 
 1. Sign in to the Canvas site that contains the assignments.
-2. Open the account or profile settings page.
-3. Find **Approved Integrations** or the institution's equivalent access-token section.
-4. Choose **New Access Token**, give it a recognizable purpose, and select an appropriate expiration date if offered.
-5. Generate the token and copy it immediately. Canvas may not show it again.
-6. Open Canvas Deadline Copilot's settings page.
-7. Enter the HTTPS origin of the same Canvas site and paste the token into the password-style replacement field.
-8. Save the settings, then choose **Test connection**.
-9. Return to the popup and choose **Sync assignments**.
+2. Open account settings and find **Approved Integrations**, **Access Tokens**, or the institution's equivalent section.
+3. Create a token with a recognizable purpose and an appropriate expiration date.
+4. Copy the token immediately; Canvas may not show it again.
+5. Open the extension's options page.
+6. Enter the Canvas site's HTTPS base URL and paste the token into the password-style token field.
+7. Select **Save settings**, then **Test connection** and approve access to that exact Canvas origin when Chrome prompts.
+8. Return to the popup and select **Sync assignments**.
 
-Never place a token in source code, terminal output, screenshots, documentation, bug reports, or chat messages. The options page does not repopulate a saved token; leaving the replacement field blank keeps the existing token only when the saved Canvas origin is unchanged.
+The options page never repopulates a saved token. Leaving the token field blank retains the existing token only when the saved Canvas origin is unchanged. Never put a token in source code, `.env` files, terminal output, screenshots, documentation, issues, or test fixtures.
+
+## Assignment synchronization and cache behavior
+
+Synchronization occurs only when the user selects **Sync assignments**. There is no alarm, timer, service-worker task, or startup hook that refreshes Canvas data automatically.
+
+The client requests active courses and follows same-origin Canvas pagination. It skips courses marked access-restricted by date, then requests assignments for the remaining courses. Every well-formed assignment returned by those requests is normalized and cached, including unpublished assignments. The popup and reminder scheduler separately filter for `workflowState === "published"`, so unpublished assignments are neither displayed nor scheduled.
+
+If one or more course assignment requests succeed, the successful results become the new snapshot; failed courses are omitted and a partial-sync warning is stored. This partial snapshot replaces the previous cache. If the initial course request fails, or every syncable course assignment request fails, no new snapshot is saved and the previous cache remains available.
+
+The cache contains assignment metadata only: identifiers, names, course information, due dates, points, workflow state, update timestamps, and Canvas links. The extension does not request submission, completion, grading, or student-progress data, so it cannot infer whether an assignment has been completed.
 
 ## Reminder behavior
 
-Reminders are off by default. A user can enable any combination of 7 days, 24 hours, 2 hours, and 30 minutes. At least one window must be selected while reminders are enabled.
+Browser reminders are disabled by default. The user can opt into any combination of 7 days, 24 hours, 2 hours, and 30 minutes; enabling reminders requires at least one selected window.
 
-Reminder alarms are derived from the latest validated local assignment cache. Only published assignments with valid future due dates are eligible. Overdue assignments, assignments without a due date, and reminder times that have already passed do not create catch-up notifications.
+Only cached published assignments with valid future due dates are eligible. A deterministic alarm is created only when its reminder time is still in the future. Overdue assignments, no-date assignments, unpublished assignments, and already-missed reminder windows do not create catch-up notifications.
 
-Chrome alarms are reconciled when the service worker loads, Chrome starts, the extension is installed or updated, assignments are synced, the cache changes, or reminder settings change. This reconstruction reduces missed reminders after a restart or update, but delivery remains best effort: Chrome, operating-system notification settings, sleep, shutdown, and device availability can delay or suppress a notification.
+The service worker reconciles the desired schedule when it loads, when Chrome starts, after installation or update, after an assignment-update message, and when the assignment cache or reminder settings change. Reconciliation removes stale alarms and avoids redelivering recorded reminders. Notification clicks open the saved assignment link only when it is a safe HTTPS URL.
 
-A notification contains the assignment name, course name, due time, and reminder-window label. This information may be visible on a lock screen or shared display. Clicking a reminder opens only a validated HTTPS Canvas assignment URL when one is available.
+Delivery is best effort. Browser shutdown, device sleep, Chrome behavior, and operating-system notification settings can delay or suppress a reminder. Reminders use the last manual snapshot until the user synchronizes again. Notification content can be visible on a shared screen, lock screen, or notification history.
 
-There is no scheduled background Canvas sync. Reminders continue to use the last cached snapshot until the user syncs again or clears the cache.
+## Calendar behavior
 
-## Calendar export behavior
+Calendar actions require a valid assignment due date and are always initiated by the user:
 
-Calendar actions are always initiated by the user and require a valid due date:
-
-- **Export ICS** downloads one assignment as a local calendar file.
-- **Export visible ICS** downloads the currently visible dated assignments as one file.
+- **Export ICS** downloads one assignment as a local RFC 5545 calendar file.
+- **Export visible ICS** downloads the currently filtered, published, dated assignments in one file; no-date assignments are skipped.
 - **Add to Google Calendar** opens a prefilled HTTPS Google Calendar template for one assignment in a new tab.
 
-Each generated event lasts one hour and can contain the assignment name, course name, points, due time, and a sanitized Canvas link. Calendar timestamps are emitted in UTC so the importing calendar can display them in its configured timezone.
+Generated events use UTC timestamps, a fixed one-hour duration, deterministic assignment identifiers, escaped and folded ICS text, and a sanitized HTTPS Canvas link when valid. ICS generation uses a temporary browser blob link and does not require the Chrome downloads permission.
 
-ICS generation happens locally and requires no Chrome downloads permission. Activating the Google Calendar link sends the prefilled event details to Google. The extension does not use Google OAuth, call the Google Calendar API, read any calendar, or automatically synchronize later Canvas changes. Exporting again creates another handoff; it does not update an earlier calendar event.
+Opening the Google Calendar template sends the prefilled event details to Google. The extension does not use Google OAuth, call the Google Calendar API, read a calendar, or update exported events when Canvas changes. Re-exporting is a new handoff and can create a duplicate event.
 
 ## Privacy and security model
 
-- The Canvas origin, API token, assignment cache, reminder settings, and reminder delivery state are stored in extension-scoped <code>chrome.storage.local</code>.
-- Canvas Deadline Copilot does not add application-level encryption to that storage. It must not be described as an encrypted credential vault.
-- The token is used only in an HTTPS authorization header sent directly to the configured Canvas origin. It is not included in diagnostics, notifications, calendar payloads, runtime messages, or application logs.
-- Canvas pagination, final responses, assignment links, notification links, and cached links are required to remain HTTPS and on the configured Canvas origin where applicable.
-- The extension has no operational backend, analytics SDK, telemetry, advertising, or remote hosted code.
-- Google receives assignment details only when the user explicitly opens a Google Calendar template URL.
-- Chrome and the operating system control notification visibility and history.
+- The Canvas origin, token, normalized assignment snapshot, reminder preferences, and reminder delivery history are stored in extension-scoped `chrome.storage.local`, not `chrome.storage.sync` or a developer-operated service.
+- The token is not application-level encrypted by this extension. Local-only storage must not be described as an encrypted credential vault.
+- The token is sent only as a bearer authorization header in direct HTTPS requests to the configured Canvas origin. It is not included in diagnostics, runtime messages, notifications, calendar payloads, or application logs.
+- Canvas base URLs, pagination links, response origins, fetched assignment links, and notification links are validated before use. Canvas API pagination cannot leave the configured origin.
+- Unexpected errors are converted to user-safe messages; malformed local data falls back safely and is removed or sanitized on a best-effort basis.
+- There is no hosted runtime backend, analytics SDK, telemetry, advertising, remote code, or external credential service.
+- ICS generation is local. Google receives assignment details only after the user selects the Google Calendar action.
 
-The options page provides two distinct actions:
+Changing the saved Canvas origin or token clears the old assignment cache. Clearing cached assignments keeps credentials and reminder preferences. Clearing credentials removes the saved URL and token and attempts to revoke the old origin permission, but deliberately keeps the cache and reminder state; clear the cache or disable reminders separately to stop reminders based on retained data. Removing the extension normally removes extension-scoped local state, but does not revoke the underlying Canvas token, delete downloaded ICS files, or retract data already sent to Canvas or Google.
 
-- **Clear cached assignments** removes the assignment snapshot only. It keeps credentials and reminder settings. The service worker then reconciles future reminder alarms toward an empty schedule.
-- **Clear saved Canvas credentials** removes the saved Canvas URL and API token and makes a best-effort attempt to revoke that origin's Chrome permission. It deliberately retains the assignment cache, reminder settings, reminder history, and existing alarms. Cached reminders can therefore still fire until reminders are disabled or the cache is cleared separately.
+Read [Privacy and data handling](docs/PRIVACY.md) before packaging or distributing the extension.
 
-Changing the saved Canvas origin or token clears the old assignment cache. Changing the origin also makes a best-effort attempt to revoke the previous host permission. Chrome's extension site-access UI should be reviewed if revocation fails or if access was granted while testing unsaved settings.
+## Manifest permissions
 
-Removing the extension normally removes its extension-scoped local state and permissions, but it does not revoke the underlying token at Canvas, delete downloaded ICS files, or retract information already sent to Canvas or Google.
+Version 1.0.0 declares exactly these entries:
 
-Read the complete [Privacy and data handling](docs/PRIVACY.md) document before packaging or publishing.
+| Manifest entry | Required? | Justification |
+| --- | --- | --- |
+| `storage` | Required | Persists the Canvas connection, validated assignment snapshot, reminder preferences, and delivery history across popup and service-worker lifetimes. |
+| `alarms` | Required | Schedules and reconstructs opt-in deadline reminders while extension pages are closed. It is not used for Canvas synchronization. |
+| `notifications` | Required | Displays deadline reminders after the user enables them. |
+| `https://*/*` | Optional host permission | Canvas can be institution-hosted or self-hosted on origins unknown at build time. Chrome does not grant this pattern at installation; the extension requests only `${normalizedCanvasOrigin}/*` when the user tests or synchronizes that site. |
 
-## Permissions
-
-| Manifest entry | Why it is needed |
-| --- | --- |
-| <code>storage</code> | Keeps the Canvas connection, validated assignment cache, reminder configuration, and delivery state available across popup and service-worker lifetimes. |
-| <code>alarms</code> | Schedules and reconstructs deadline reminder events while the popup is closed. |
-| <code>notifications</code> | Shows deadline notifications after the user opts into reminders. |
-| Optional <code>https://*/*</code> host pattern | Canvas can be hosted on institution-specific and self-hosted HTTPS domains that are unknown at build time. The broad pattern is declared as optional; the extension requests only the exact normalized Canvas origin when the user tests or syncs it. |
-
-The extension does not request <code>tabs</code>, <code>downloads</code>, browsing-history, cookies, identity, or broad required host access. Creating a user-selected tab does not require the <code>tabs</code> permission, and ICS downloads use a temporary local blob link.
+There are no required host permissions. The manifest does not request `tabs`, `downloads`, `identity`, cookies, history, or browsing-data access. Opening a user-selected URL with `chrome.tabs.create` does not require the broad `tabs` permission, and ICS downloads use a local blob URL.
 
 ## Testing
 
-From <code>extension/</code>:
+The automated suite covers:
 
-~~~bash
-pnpm test
-pnpm typecheck
-pnpm build
-pnpm package
-~~~
+- Canvas URL normalization, API responses, same-origin pagination, parsing, normalization, partial failure, and total-failure recovery;
+- assignment classification, sorting, search, course/status filtering, and local-day boundaries;
+- storage validation, corrupted-data recovery, credential changes, and clearing behavior;
+- ICS formatting, Unicode folding, filenames, and Google Calendar URL generation;
+- deterministic reminder planning, reconciliation, stale-alarm cleanup, delivery history, notification failure, and safe click handling;
+- runtime messages, host permission requests/revocation, diagnostics, safe errors, and release-package integrity.
 
-From the repository root:
+Tests use synthetic Canvas records, mocked `fetch`, and mocked Chrome APIs. They do not contact a real Canvas site, create real Chrome alarms or notifications, or validate Chrome Web Store policy compliance. Load-unpacked QA is still required for UI, accessibility, permission prompts, browser lifecycle behavior, notifications, calendar handoffs, and the packaged artifact.
 
-~~~bash
-git diff --check
-~~~
+## Continuous integration and release packaging
 
-The automated suite covers assignment classification and DST boundaries, Canvas URL/API validation and partial syncs, calendar generation, malformed settings and cache recovery, reminder reconciliation and delivery behavior, diagnostics, clearing actions, safe error messages, and background-message fallbacks. Tests use synthetic data and mocked Chrome APIs.
+GitHub Actions runs on pushes and pull requests. The workflow uses Node.js 22 and pnpm 10.15.1, installs with `pnpm install --frozen-lockfile`, runs tests and typechecking, then runs `pnpm package`. The package command performs the production build itself, so CI does not need a separate build step.
 
-GitHub Actions runs dependency installation with the pnpm cache, tests, typechecking, and the production build for pushes and pull requests.
+For manifest/package version 1.0.0, `pnpm package` writes:
+
+```text
+extension/release/canvas-deadline-copilot-1.0.0.zip
+```
+
+Packaging verifies that package and manifest versions match, builds from source, permits only the expected runtime entry points, icons, manifest, and generated JavaScript/CSS assets, validates manifest file references, rejects source maps, unexpected files, symlinks, workspace paths, and development-server markers, and confirms that the ZIP matches the validated staging tree. Source, tests, local paths, and generated maps are not intended to enter the archive. `dist/` and `release/` are generated locally and ignored by Git.
+
+This is continuous integration plus local release-package automation. The workflow does not upload a release artifact, create a GitHub release, submit to the Chrome Web Store, or deploy the extension.
+
+## Chrome Web Store status and policy review
+
+Canvas Deadline Copilot version 1.0.0 is a release candidate. It has **not been submitted to or published in the Chrome Web Store**. A successful build or package is not evidence of store approval.
+
+Public distribution with manually entered Canvas tokens requires a final policy review. Instructure's official [OAuth2 documentation](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth) describes manually generated tokens as a testing mechanism and requires OAuth for multi-user applications. The current extension does not implement OAuth, so the publisher must obtain an appropriate policy determination or change the authentication/distribution plan before public release.
+
+The publisher must also reconcile the unencrypted `chrome.storage.local` token design and in-product disclosures with the current Chrome Web Store [user-data requirements](https://developer.chrome.com/docs/webstore/user_data) and [privacy policy requirements](https://developer.chrome.com/docs/webstore/program-policies/privacy). Other open release work includes a public privacy-policy URL, dashboard disclosures and Limited Use certification, final synthetic screenshots and promotional artwork, clean-profile package QA, and publisher/support/security contact review. Track every blocker in the [release checklist](docs/RELEASE_CHECKLIST.md).
 
 ## Known limitations
 
-- Canvas sync is manual. There is no scheduled or push-based Canvas refresh.
-- The extension reads assignment metadata but does not fetch submission, completion, or grading state. A submitted assignment can still appear overdue.
-- Only published assignments from active, accessible courses are shown. Institution permissions and Canvas API behavior can limit results.
-- Reminder accuracy depends on the last manual sync and Chrome/operating-system scheduling.
-- Reminder windows already missed are not delivered retroactively.
-- Clearing credentials does not clear the cache or stop cached reminders; use the separate cache or reminder controls.
-- Calendar export is a snapshot. There is no automatic Google Calendar, Outlook, or Apple Calendar synchronization.
-- ICS events use a fixed one-hour duration.
-- A manually generated Canvas token may be unavailable or unsuitable for public distribution under institutional or Instructure policy.
-- The stored token is local but is not application-level encrypted by this extension.
-- Version 1.0.0 targets Chrome Manifest V3; other browsers are not a supported release target.
+- Only one Canvas origin can be configured at a time.
+- Canvas synchronization is manual; the cache and any derived reminders can become stale.
+- The extension cannot determine submission, completion, or grading status. A completed assignment can still appear overdue.
+- Canvas permissions, course access dates, institutional settings, and API behavior can limit returned data.
+- Only published assignments are displayed or scheduled, although validated unpublished records returned by Canvas remain in the local snapshot.
+- Reminder reconstruction does not create catch-up alarms for windows already in the past. Chrome can still delay an alarm that was already scheduled and deliver it late before the assignment due time.
+- Clearing credentials alone does not clear cached assignments or disable reminders derived from that cache.
+- Calendar exports are snapshots with a fixed one-hour event duration; they do not update or deduplicate previously imported events.
+- Google Calendar handoff exposes the selected event details to Google and uses the account active in the browser.
+- Personal token creation may be unavailable or inappropriate for public distribution under Canvas or institutional policy.
+- Local token storage is not application-level encrypted and still requires final Chrome Web Store compliance review.
+- Version 1.0.0 targets Chrome Manifest V3; other browsers are not supported release targets.
 
-## Release roadmap
+## Local contribution guidance
 
-1. **Version 1.0.0 release candidate:** onboarding, manual sync, local filtering/cache, reminders, calendar export, diagnostics, data controls, reliability hardening, accessibility checks, CI, and deterministic packaging.
-2. **Before Chrome Web Store submission:** complete [the release checklist](docs/RELEASE_CHECKLIST.md), publish a stable privacy-policy URL, reconcile credential storage with current Chrome Web Store secure-handling requirements, and resolve Instructure's manual-token/OAuth policy for public distribution.
-3. **After an approved release:** prioritize security updates, Chrome compatibility, accessibility, and reliability based on verified user feedback. No future integration is promised.
+Keep changes scoped to `extension/` runtime code, tests, active documentation, or release tooling. Preserve the separation between pure logic in `src/lib/` and Chrome API boundaries in the popup, options page, and service worker. Add focused regression tests for behavior changes, use only synthetic Canvas data, and run `pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm package`, and `git diff --check` before proposing a release change.
 
-## Project documentation
+Do not commit personal Canvas data, API tokens, credentials, local paths, `.env` files, source maps, dependencies, `.test-build/`, `dist/`, or `release/` output. Changes that affect permissions, authentication, collected data, external URLs, notification content, or calendar handoffs also require corresponding privacy, architecture, store-listing, and release-checklist review.
+
+## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Privacy and data handling](docs/PRIVACY.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)
 - [Chrome Web Store listing draft](docs/STORE_LISTING.md)
+- [Final repository audit](docs/FINAL_REPOSITORY_AUDIT.md)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Canvas Deadline Copilot is licensed under the [MIT License](LICENSE).

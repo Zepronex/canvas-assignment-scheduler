@@ -13,6 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateManifestReferences } from './package-validation.mjs';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const extensionRoot = resolve(scriptDirectory, '..');
@@ -73,6 +74,7 @@ async function packageExtension() {
 
   const distribution = await inspectDistribution(distDirectory);
   await validateDistribution(distDirectory, distribution);
+  validateManifestReferences(distManifest, distribution.files);
 
   temporaryDirectory = await mkdtemp(join(tmpdir(), 'canvas-deadline-copilot-'));
   const stagingDirectory = join(temporaryDirectory, 'extension');

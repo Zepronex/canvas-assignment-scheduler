@@ -1,8 +1,8 @@
 # Chrome Web Store listing draft
 
-This is copy and asset guidance for Canvas Deadline Copilot version 1.0.0. It is a draft, not authorization to submit.
+This is copy and asset guidance for Canvas Deadline Copilot version 1.0.0. It is a draft, not authorization to submit. The extension has not been submitted to or published on the Chrome Web Store.
 
-**Submission blockers:** Before using this copy publicly, resolve Instructure's manual-token/OAuth policy for multi-user applications and reconcile unencrypted <code>chrome.storage.local</code> token storage with current Chrome Web Store secure-handling requirements. Publish the privacy policy and complete the dashboard privacy disclosures and Limited Use certification. If the implementation changes to resolve either blocker, update every section below.
+**Submission blockers:** Before using this copy publicly, resolve Instructure's [manual-token/OAuth policy](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth) for multi-user applications and reconcile token storage without application-level encryption in <code>chrome.storage.local</code> with current Chrome Web Store [user-data and secure-handling requirements](https://developer.chrome.com/docs/webstore/user_data). Publish the privacy policy, complete the dashboard privacy disclosures and [Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use) certification, provide final store assets and publisher/support details, and complete manual browser QA. If the implementation changes to resolve a blocker, update every section below.
 
 ## Product name
 
@@ -18,9 +18,11 @@ The short description is under the Chrome Web Store limit and does not claim aut
 
 Canvas Deadline Copilot brings assignment deadlines from a Canvas LMS site into a compact Chrome popup.
 
-After you configure an HTTPS Canvas site and credential, assignments sync only when you choose **Sync assignments**. The extension shows published assignments from active courses, keeps the latest validated snapshot locally, and lets you search by assignment name or filter by course and deadline status.
+After you configure an HTTPS Canvas site and manually enter a personal API token, assignments sync only when you choose **Sync assignments**. The extension fetches and caches validated assignment records from active courses. The dashboard excludes unpublished assignments and lets you search published assignments by name or filter them by course and deadline status.
 
-Optional browser reminders can be scheduled for 7 days, 24 hours, 2 hours, or 30 minutes before future due dates. Reminders are reconstructed from the local cache after Chrome or the extension restarts. Delivery is best effort and depends on Chrome, your device, and operating-system notification settings.
+A successful sync replaces the cached snapshot. If some course assignment requests fail, the snapshot is replaced with the current results from successful courses and a partial-sync warning is retained; old results are not merged into that snapshot. If the course request fails or every syncable course assignment request fails, the prior cache is preserved.
+
+Optional browser reminders can be scheduled for 7 days, 24 hours, 2 hours, or 30 minutes before future due dates. Reminders are reconstructed from the local cache after Chrome or the extension restarts. A reconstruction skips windows already in the past. Chrome may delay an alarm that was already scheduled, such as while a device sleeps; if it fires before the due time and still passes validation, the notification can appear late. Delivery is best effort and depends on Chrome, your device, and operating-system notification settings.
 
 For calendar planning, you can download one assignment or the visible dated assignments as an ICS file. You can also explicitly open a prefilled Google Calendar event for one assignment. Canvas Deadline Copilot does not connect to a calendar account or automatically synchronize calendar changes.
 
@@ -28,7 +30,7 @@ The settings page shows connection and reminder status plus non-sensitive diagno
 
 Canvas requests go directly from the extension to the exact HTTPS Canvas origin you authorize. Extension state is stored in the current Chrome profile. There is no developer-operated runtime backend, analytics, advertising, or telemetry. See the privacy disclosure and policy for storage, notification, Google Calendar, and data-retention details.
 
-Canvas Deadline Copilot does not read assignment submission/completion status and does not sync Canvas automatically. It is an independent project and is not affiliated with or endorsed by Instructure or Google.
+Canvas Deadline Copilot does not read assignment submission/completion status and does not sync Canvas automatically. It has no Canvas or Google OAuth, email reminders, hosted backend, analytics, telemetry, or automatic calendar synchronization. It is an independent project and is not affiliated with or endorsed by Instructure or Google.
 
 ## Single-purpose statement
 
@@ -68,6 +70,8 @@ Clearing cached assignments removes only the assignment snapshot and reconciles 
 
 The extension does not sell user data, use it for advertising or credit decisions, or allow the publisher to read it. Data is used only for the extension's disclosed deadline-management features and related security/reliability behavior.
 
+**Limited Use statement:** Canvas Deadline Copilot's use of user data complies with the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/user_data), including the [Limited Use requirements](https://developer.chrome.com/docs/webstore/program-policies/limited-use). This statement describes the audited version 1.0.0 data flows; the publisher must revalidate it if the implementation changes.
+
 ## Privacy practices dashboard review
 
 The publisher must answer the live dashboard questionnaire using its current definitions. At minimum, review:
@@ -76,7 +80,7 @@ The publisher must answer the live dashboard questionnaire using its current def
 - personally identifiable information, because a connection test handles the Canvas profile response in memory;
 - website content, because course names, assignment names, due dates, points, and links are cached and displayed;
 - whether any current dashboard category applies to configured Canvas origins or user-opened links;
-- the Limited Use certification; and
+- the [Limited Use certification](https://developer.chrome.com/docs/webstore/program-policies/limited-use); and
 - the exact local storage, Canvas transmission, Google Calendar handoff, notification, and retention disclosures.
 
 Do not select “does not handle user data” solely because the publisher does not receive it or because processing is local.
@@ -134,9 +138,9 @@ The publisher must also add a monitored private security-reporting channel befor
 
 Initial release of Canvas Deadline Copilot:
 
-- Manually sync published assignments from active courses on a user-configured HTTPS Canvas site.
+- Manually fetch and cache validated assignments from active courses on a user-configured HTTPS Canvas site; display only published assignments.
 - Search and filter a locally cached deadline dashboard by course and overdue, today, upcoming, or no-date status.
-- Preserve assignments from successful courses during a partial sync.
+- Replace the cache with current successful-course results during a partial sync while preserving the prior cache if the course request or every syncable course assignment request fails.
 - Opt into Chrome reminders at 7 days, 24 hours, 2 hours, or 30 minutes before future deadlines.
 - Reconstruct reminder alarms after browser or extension lifecycle changes.
 - Export individual or visible dated assignments as ICS files.

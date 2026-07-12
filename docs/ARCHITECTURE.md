@@ -1,6 +1,6 @@
 # Canvas Deadline Copilot architecture
 
-This document describes the runtime architecture of the Chrome extension released from the `extension/` directory. Canvas Deadline Copilot is a Manifest V3 extension built with React, TypeScript, and Vite. The installed extension does not depend on the repository's legacy web frontend or Python backend.
+This document describes the runtime architecture of the Chrome extension released from the `extension/` directory. Canvas Deadline Copilot is a Manifest V3 extension built with React, TypeScript, and Vite. The repository and release are extension-only: no web application or hosted backend participates in the product.
 
 ## Runtime boundaries
 
@@ -13,6 +13,10 @@ Vite produces three extension entry points:
 The popup and options page are short-lived extension documents. Durable state belongs in `chrome.storage.local`, and durable reminder execution belongs to Chrome alarms rather than in-memory timers. The service worker can stop whenever it is idle, so its in-memory queues coordinate only the current worker lifetime; persisted cache, settings, delivery history, and Chrome alarms remain the source of truth.
 
 The extension performs no scheduled background Canvas sync. A user starts each Canvas connection test or assignment sync from an extension page.
+
+The manifest requires only `storage`, `alarms`, and `notifications`. It declares `https://*/*` as an optional host-permission pattern so the extension can support institution-specific Canvas domains. At runtime, it requests only the configured Canvas origin. There are no required host permissions and no `tabs`, `downloads`, or `identity` permission.
+
+The extension does not implement Canvas or Google OAuth, email reminders, a hosted service, analytics, telemetry, Canvas submission/completion fetching, automatic Canvas sync, or automatic calendar synchronization.
 
 ## Component map
 
@@ -48,14 +52,14 @@ When the user chooses **Sync assignments**, the popup:
 
 1. Requests optional host access for the exact HTTPS Canvas origin in the saved settings.
 2. Calls the Canvas API client for active courses and their assignments.
-3. Normalizes and validates the returned data.
+3. Normalizes and validates the returned data. The cache can contain valid unpublished records returned by Canvas.
 4. Replaces the local assignment cache after a successful or usable partial sync.
 5. Sends a data-free `canvas-deadline:assignments-updated` runtime message.
 6. Updates the current popup view.
 
 The service worker also observes assignment-cache changes directly. This storage event is the reliable reminder-rebuild trigger if runtime messaging has no receiver or the background worker is being restarted.
 
-Filtering, status classification, sorting, and course selection happen locally against the cache. The popup renders assignment and calendar links only from normalized HTTPS URLs. Calendar export is also initiated from the popup.
+Filtering, publication-state checks, status classification, sorting, and course selection happen locally against the cache. Unpublished assignments are excluded from the dashboard and therefore from its calendar actions, even if Canvas returned and the extension cached a valid normalized record. The popup renders assignment and calendar links only from normalized HTTPS URLs. Calendar export is also initiated from the popup.
 
 ## Options page
 
@@ -83,7 +87,7 @@ The client uses these Canvas API paths:
 
 Course and assignment collections are paginated. Every initial request, redirect response URL, and `Link` header continuation must remain HTTPS, contain no embedded URL credentials, and match the configured Canvas origin. Assignment links must also be HTTPS and same-origin before they enter the normalized cache.
 
-Assignment requests for different courses run concurrently. If some courses fail, assignments from successful courses are retained and `failedCourseCount` records a concise partial-sync warning. If every syncable course fails, the sync fails and the previous cache is left unchanged.
+Assignment requests for different courses run concurrently. If some courses fail, the current results from successful courses replace the previous cache and `failedCourseCount` records a concise partial-sync warning; partial results are not merged with assignments from an older cache. If every syncable course assignment request fails, or the course request itself fails, the sync fails and the previous cache is left unchanged.
 
 ## Local storage and cache
 
@@ -93,13 +97,12 @@ All extension-managed persistent data uses `chrome.storage.local`; the extension
 | --- | --- | --- |
 | `settings` | Canvas HTTPS origin and API token | Popup, options page, Canvas client |
 | `assignmentCache` | Courses, normalized assignments, last successful sync time, and optional failed-course count | Popup, diagnostics, service worker |
-| `assignmentNotes` | Assignment-ID-to-note map retained by the storage layer; the current popup does not expose note editing | Storage helpers |
 | `reminderSettings` | Enabled flag and selected reminder windows | Popup, options page, service worker |
 | `reminderDeliveryHistory` | Delivered alarm identifiers, delivery timestamps, and an optional sanitized HTTPS assignment URL | Service worker |
 
-Each read validates the stored shape before returning it. Invalid credentials, reminder settings, notes, cache entries, and delivery records fall back to safe empty/default values. The storage layer makes a best-effort attempt to remove or replace corrupted values so the same corruption is not processed indefinitely.
+Each read validates the stored shape before returning it. Invalid credentials, reminder settings, cache entries, and delivery records fall back to safe empty/default values. The storage layer makes a best-effort attempt to remove or replace corrupted values so the same corruption is not processed indefinitely.
 
-The assignment cache is a snapshot, not a live view of Canvas. The last successful snapshot remains available when a later sync fails. No-date and unpublished assignments are handled without creating reminder alarms.
+The assignment cache is a snapshot, not a live view of Canvas. A usable partial sync replaces it with the current successful-course results. The previous snapshot remains available only when a later sync fails before producing usable results. Unpublished assignments can exist in the validated cache, but the dashboard and reminder scheduler exclude them. No-date assignments remain visible in the dashboard but cannot create reminders or calendar exports.
 
 ## Background service worker
 
@@ -129,7 +132,9 @@ The notification is created before its delivery record is written. This prevents
 
 Reminder alarm names encode the course ID, assignment ID, selected window, and due timestamp. Including the due timestamp versions the alarm: changing a Canvas due date makes the old alarm stale and produces a new deterministic identifier.
 
-Only published assignments with valid future due dates are eligible. A window is scheduled only when its notification time is still in the future. Consequently, overdue assignments, assignments without due dates, and reminder windows already missed when reconciliation runs do not create new alarms.
+Only published assignments with valid future due dates are eligible. A window is scheduled only when its notification time is still in the future. Consequently, overdue assignments, assignments without due dates, and reminder windows already missed when reconciliation runs do not create new alarms; reconstruction does not create a retroactive notification for a past window.
+
+Chrome may delay an alarm that was successfully scheduled, for example while a device sleeps. If Chrome later fires that existing alarm before the assignment due time, the service worker can display the reminder late after its normal validation checks. It suppresses the notification once the due time has passed. Alarm timing is therefore best effort rather than exact.
 
 Notifications contain the assignment name, course name, localized due date/time, and configured reminder-window label. After notification creation succeeds, delivery history suppresses duplicate delivery. On a notification click, the worker resolves the previously stored HTTPS assignment URL, opens it in a new tab when valid, and always attempts to clear the clicked notification. Storage, tab, and cleanup failures are contained so they do not become unhandled service-worker errors.
 
@@ -159,6 +164,10 @@ There are three important flows:
 
 The runtime message contains only a constant message type. Assignment data stays in the validated local cache and is not copied into the message payload.
 
-## Build-time separation
+## CI, packaging, and deployment boundary
 
-Vite bundles the popup, options page, and service worker into `extension/dist`. Source maps are disabled for production builds. Static manifest and icon assets are copied from `extension/public`. The release packaging script builds first and archives the built extension assets rather than the TypeScript source, tests, repository documentation, or development dependencies.
+Vite bundles the popup, options page, and service worker into `extension/dist`. Source maps are disabled for production builds. Static manifest and icon assets are copied from `extension/public`. The release packaging script builds first, validates the distribution allowlist and manifest references, archives the built extension assets, and verifies that the ZIP file list matches the validated staging directory. TypeScript source, tests, repository documentation, and development dependencies are not packaged.
+
+GitHub Actions runs on pushes and pull requests. It installs the frozen dependency lockfile, runs the 83-test suite, typechecks, and runs `pnpm package`; packaging performs the production build and validates the resulting ZIP. The workflow does not upload an artifact, publish a release, submit to the Chrome Web Store, or deploy the extension. Chrome Web Store submission remains a manual future step, and version 1.0.0 has not been submitted or published.
+
+This architecture is not evidence of distribution approval. Public release still requires resolution of the manual-token and token-storage policy blockers documented in [Privacy](PRIVACY.md#limited-use-statement-and-distribution-policy-status) and the [release checklist](RELEASE_CHECKLIST.md#blocking-policy-and-security-decisions).

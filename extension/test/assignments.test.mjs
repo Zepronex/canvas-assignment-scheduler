@@ -5,11 +5,6 @@ import {
   filterAndSortAssignments,
   getAssignmentStatus,
   getAssignmentStatusCounts,
-  hasNoDueDate,
-  isDueTodayAssignment,
-  isOverdueAssignment,
-  isUpcomingAssignment,
-  sortAssignmentsByDueDate,
 } from '../.test-build/lib/assignments.js';
 
 const NOW = new Date(2026, 6, 11, 12, 0, 0);
@@ -26,10 +21,6 @@ test('classifies overdue, today, upcoming, and missing due dates', () => {
   assert.equal(getAssignmentStatus(todayLater, NOW), 'today');
   assert.equal(getAssignmentStatus(upcoming, NOW), 'upcoming');
   assert.equal(getAssignmentStatus(noDate, NOW), 'no-date');
-  assert.equal(isOverdueAssignment(overdue, NOW), true);
-  assert.equal(isDueTodayAssignment(todayLater, NOW), true);
-  assert.equal(isUpcomingAssignment(upcoming, NOW), true);
-  assert.equal(hasNoDueDate(noDate), true);
 });
 
 test('uses local calendar-day boundaries and excludes unpublished assignments', () => {
@@ -161,14 +152,14 @@ test('filters assignments by each status and reports status counts', () => {
   });
 });
 
-test('sortAssignmentsByDueDate sorts chronologically without mutating input', () => {
+test('filterAndSortAssignments sorts chronologically without mutating input', () => {
   const assignments = [
     assignment({ id: 1, name: 'No due date', dueAt: null }),
     assignment({ id: 2, name: 'Later instant', dueAt: '2026-01-01T23:00:00Z' }),
     assignment({ id: 3, name: 'Earlier instant', dueAt: '2026-01-02T00:30:00+02:00' }),
   ];
 
-  const sorted = sortAssignmentsByDueDate(assignments);
+  const sorted = filterAndSortAssignments(assignments, { now: NOW });
 
   assert.deepEqual(
     sorted.map(({ id }) => id),
@@ -180,12 +171,15 @@ test('sortAssignmentsByDueDate sorts chronologically without mutating input', ()
   );
 });
 
-test('sortAssignmentsByDueDate puts missing and invalid dates last', () => {
-  const sorted = sortAssignmentsByDueDate([
-    assignment({ id: 1, name: 'Zulu', dueAt: null }),
-    assignment({ id: 2, name: 'Alpha', dueAt: 'not-a-date' }),
-    assignment({ id: 3, name: 'Dated', dueAt: '2026-01-01T00:00:00Z' }),
-  ]);
+test('filterAndSortAssignments puts missing and invalid dates last', () => {
+  const sorted = filterAndSortAssignments(
+    [
+      assignment({ id: 1, name: 'Zulu', dueAt: null }),
+      assignment({ id: 2, name: 'Alpha', dueAt: 'not-a-date' }),
+      assignment({ id: 3, name: 'Dated', dueAt: '2026-01-01T00:00:00Z' }),
+    ],
+    { now: NOW },
+  );
 
   assert.deepEqual(
     sorted.map(({ id }) => id),
