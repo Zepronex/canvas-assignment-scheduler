@@ -9,10 +9,6 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_DATE_TIME_PATTERN =
   /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)(Z|[+-]\d{2}:\d{2})?$/i;
 
-export interface GoogleCalendarEventOptions {
-  durationMinutes?: number;
-}
-
 /**
  * Creates a deterministic RFC 5545 calendar containing every assignment with
  * a valid due date. Input order is retained so exports match the popup order.
@@ -88,41 +84,22 @@ export function downloadICS(
 
 /** Creates a pre-filled Google Calendar event for a dated assignment. */
 export function generateGoogleCalendarUrl(assignment: NormalizedAssignment): string | null {
-  return buildGoogleCalendarEventUrl(assignment);
-}
-
-/**
- * Backwards-compatible variant that also permits a custom event duration.
- */
-export function buildGoogleCalendarEventUrl(
-  assignment: NormalizedAssignment,
-  options: GoogleCalendarEventOptions = {},
-): string | null {
   const startDate = parseDate(assignment.dueAt);
   if (!startDate) {
     return null;
   }
 
-  const durationMinutes = options.durationMinutes ?? DEFAULT_EVENT_DURATION_MINUTES;
-  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-    return null;
-  }
-
-  const endDate = addMinutes(startDate, durationMinutes);
+  const endDate = addMinutes(startDate, DEFAULT_EVENT_DURATION_MINUTES);
   const url = new URL(GOOGLE_CALENDAR_TEMPLATE_URL);
   url.searchParams.set('action', 'TEMPLATE');
   url.searchParams.set('text', buildEventTitle(assignment));
   url.searchParams.set(
     'dates',
-    `${formatGoogleCalendarDate(startDate)}/${formatGoogleCalendarDate(endDate)}`,
+    `${formatCalendarDate(startDate)}/${formatCalendarDate(endDate)}`,
   );
   url.searchParams.set('details', buildEventDescription(assignment));
 
   return url.toString();
-}
-
-export function formatGoogleCalendarDate(date: Date): string {
-  return formatCalendarDate(date);
 }
 
 function buildEventTitle(assignment: NormalizedAssignment): string {

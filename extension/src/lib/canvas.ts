@@ -73,19 +73,11 @@ export function normalizeCanvasBaseUrl(input: string): string {
     throw new CanvasConnectionError('invalid-url', 'Canvas URL must start with https://.');
   }
 
-  if (!url.hostname || url.username || url.password) {
+  if (!url.hostname || url.hostname.includes('*') || url.username || url.password) {
     throw new CanvasConnectionError('invalid-url', 'Enter a valid Canvas URL.');
   }
 
   return url.origin;
-}
-
-export function normalizeCanvasUrl(rawUrl: string): string {
-  try {
-    return normalizeCanvasBaseUrl(rawUrl);
-  } catch {
-    return '';
-  }
 }
 
 export function hasCanvasSettings(settings: Partial<CanvasSettings>): settings is CanvasSettings {
@@ -117,16 +109,6 @@ export function buildCanvasHeaders(canvasToken: string): HeadersInit {
     Accept: 'application/json',
     Authorization: `Bearer ${token}`,
   };
-}
-
-export function buildCanvasRequest(
-  settings: CanvasSettings,
-  apiPath: string,
-  params?: CanvasQueryParams,
-): Request {
-  return new Request(buildCanvasApiUrl(settings.canvasUrl, apiPath, params), {
-    headers: buildCanvasHeaders(settings.canvasToken),
-  });
 }
 
 export function parseCanvasLinkHeader(linkHeader: string | null): CanvasLinkRelations {
@@ -228,7 +210,9 @@ export async function fetchCanvasAssignmentsForCourse(
   );
 
   const canvasOrigin = normalizeCanvasBaseUrl(settings.canvasUrl);
-  return assignments.map((assignment) => parseCanvasAssignment(assignment, canvasOrigin));
+  return assignments.map((assignment) =>
+    parseCanvasAssignment(assignment, canvasOrigin, courseId),
+  );
 }
 
 export function normalizeCanvasAssignment(
@@ -468,7 +452,11 @@ function parseCanvasCourse(payload: unknown): CanvasCourse {
   };
 }
 
-function parseCanvasAssignment(payload: unknown, canvasOrigin: string): CanvasAssignment {
+function parseCanvasAssignment(
+  payload: unknown,
+  canvasOrigin: string,
+  requestedCourseId: CanvasCourse['id'],
+): CanvasAssignment {
   if (
     !isRecord(payload) ||
     !isCanvasId(payload.id) ||
@@ -490,6 +478,7 @@ function parseCanvasAssignment(payload: unknown, canvasOrigin: string): CanvasAs
 
   if (
     !name ||
+    payload.course_id !== requestedCourseId ||
     !htmlUrl ||
     new URL(htmlUrl).origin !== canvasOrigin ||
     !workflowState ||

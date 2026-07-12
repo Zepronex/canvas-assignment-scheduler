@@ -56,9 +56,5 @@ export interface AssignmentSyncResult {
   failedCourseCount?: number;
 }
 
-export type AssignmentNotes = Record<string, string>;
-
-export type AssignmentSortBy = 'date' | 'course';
 export type AssignmentStatus = 'overdue' | 'today' | 'upcoming' | 'no-date';
 export type AssignmentStatusFilter = 'all' | AssignmentStatus;
-export type SortOrder = 'asc' | 'desc';

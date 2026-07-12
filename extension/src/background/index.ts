@@ -1,4 +1,4 @@
-import { ASSIGNMENTS_UPDATED_MESSAGE } from '../lib/messages';
+import { isAssignmentsUpdatedMessage } from '../lib/messages';
 import {
   createNotificationThenRecordDelivery,
   openNotificationAndAlwaysCleanup,
@@ -252,13 +252,4 @@ function formatDueAt(timestamp: number): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(timestamp));
-}
-
-function isAssignmentsUpdatedMessage(value: unknown): boolean {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      'type' in value &&
-      value.type === ASSIGNMENTS_UPDATED_MESSAGE,
-  );
 }

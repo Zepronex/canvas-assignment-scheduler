@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   ASSIGNMENTS_UPDATED_MESSAGE,
+  isAssignmentsUpdatedMessage,
   notifyAssignmentsUpdated,
 } from '../.test-build/lib/messages.js';
 
@@ -34,6 +35,16 @@ test('assignment update messaging sends only the expected non-sensitive payload'
 
   assert.deepEqual(receivedMessage, { type: ASSIGNMENTS_UPDATED_MESSAGE });
   assert.deepEqual(Object.keys(receivedMessage), ['type']);
+});
+
+test('assignment update messages use the service-worker discriminator', () => {
+  assert.equal(
+    isAssignmentsUpdatedMessage({ type: ASSIGNMENTS_UPDATED_MESSAGE }),
+    true,
+  );
+  assert.equal(isAssignmentsUpdatedMessage({ type: 'canvas-deadline:unknown' }), false);
+  assert.equal(isAssignmentsUpdatedMessage({}), false);
+  assert.equal(isAssignmentsUpdatedMessage(null), false);
 });
 
 test('assignment update messaging consumes callback lastError without rejecting', async () => {

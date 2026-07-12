@@ -38,6 +38,16 @@ test('maps denied and failed host permission operations to fixed messages', asyn
   );
 });
 
+test('rejects wildcard Canvas hosts before requesting permission', async () => {
+  const calls = installPermissionsMock();
+
+  await assert.rejects(
+    ensureCanvasHostPermission('https://*.example.edu'),
+    /Enter a valid Canvas URL\./,
+  );
+  assert.deepEqual(calls, []);
+});
+
 function installPermissionsMock({ granted = true, lastError } = {}) {
   const calls = [];
   globalThis.chrome = {
