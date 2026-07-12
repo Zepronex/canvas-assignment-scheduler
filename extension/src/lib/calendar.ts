@@ -4,6 +4,9 @@ const GOOGLE_CALENDAR_TEMPLATE_URL = 'https://calendar.google.com/calendar/rende
 const DEFAULT_EVENT_DURATION_MINUTES = 60;
 const DEFAULT_ICS_FILENAME = 'canvas-assignments.ics';
 const PROD_ID = '-//Canvas Deadline Copilot//Calendar Export//EN';
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATE_TIME_PATTERN =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)(Z|[+-]\d{2}:\d{2})?$/i;
 
 export interface GoogleCalendarEventOptions {
   durationMinutes?: number;
@@ -35,7 +38,7 @@ export function generateICS(assignments: readonly NormalizedAssignment[]): strin
 
     contentLines.push(
       'BEGIN:VEVENT',
-      `UID:canvas-assignment-${assignment.courseId}-${assignment.id}@canvas-deadline-copilot.invalid`,
+      `UID:${buildEventUid(assignment)}`,
       `DTSTAMP:${formatCalendarDate(updatedDate)}`,
       `DTSTART:${formatCalendarDate(dueDate)}`,
       `DTEND:${formatCalendarDate(endDate)}`,
@@ -134,12 +137,42 @@ function buildEventDescription(assignment: NormalizedAssignment): string {
   ].join('\n');
 }
 
+function buildEventUid(assignment: NormalizedAssignment): string {
+  let sourceDomain = 'canvas-deadline-copilot.invalid';
+
+  try {
+    const hostname = new URL(assignment.htmlUrl).hostname.toLowerCase();
+    const safeHostname = hostname.replace(/[^a-z0-9.-]/g, '-');
+    if (safeHostname) {
+      sourceDomain = safeHostname;
+    }
+  } catch {
+    // Keep the deterministic fallback for malformed legacy cache entries.
+  }
+
+  return `canvas-assignment-${assignment.courseId}-${assignment.id}@${sourceDomain}`;
+}
+
 function parseDate(value: string | null): Date | null {
   if (!value) {
     return null;
   }
 
-  const date = new Date(value);
+  const trimmedValue = value.trim();
+  let normalizedValue: string;
+
+  if (ISO_DATE_PATTERN.test(trimmedValue)) {
+    normalizedValue = `${trimmedValue}T00:00:00Z`;
+  } else {
+    const match = ISO_DATE_TIME_PATTERN.exec(trimmedValue);
+    if (!match) {
+      return null;
+    }
+
+    normalizedValue = `${match[1]}${match[2] ?? 'Z'}`;
+  }
+
+  const date = new Date(normalizedValue);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 

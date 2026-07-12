@@ -34,7 +34,7 @@ test('generates a deterministic RFC 5545 calendar without mutating assignments',
   assert.equal(countOccurrences(firstCalendar, 'BEGIN:VEVENT'), 2);
   assert.match(
     unfoldedCalendar,
-    /UID:canvas-assignment-42-7@canvas-deadline-copilot\.invalid\r\n/,
+    /UID:canvas-assignment-42-7@canvas\.example\.edu\r\n/,
   );
   assert.match(unfoldedCalendar, /DTSTAMP:20260710T080000Z\r\n/);
   assert.match(unfoldedCalendar, /DTSTART:20260712T140000Z\r\n/);
@@ -80,6 +80,33 @@ test('converts offset timestamps to timezone-safe UTC calendar values', () => {
   assert.equal(googleUrl.searchParams.get('dates'), '20260101T223000Z/20260101T233000Z');
 });
 
+test('interprets timezone-less ISO timestamps as UTC deterministically', () => {
+  const calendar = unfoldICS(
+    generateICS([
+      assignment({
+        dueAt: '2026-01-02T00:30:00',
+        updatedAt: '2026-01-01T22:00:00',
+      }),
+    ]),
+  );
+
+  assert.match(calendar, /DTSTAMP:20260101T220000Z\r\n/);
+  assert.match(calendar, /DTSTART:20260102T003000Z\r\n/);
+  assert.match(calendar, /DTEND:20260102T013000Z\r\n/);
+});
+
+test('includes the Canvas host in stable event identifiers', () => {
+  const calendar = unfoldICS(
+    generateICS([
+      assignment(),
+      assignment({ htmlUrl: 'https://other.instructure.com/courses/42/assignments/7' }),
+    ]),
+  );
+
+  assert.match(calendar, /UID:canvas-assignment-42-7@canvas\.example\.edu\r\n/);
+  assert.match(calendar, /UID:canvas-assignment-42-7@other\.instructure\.com\r\n/);
+});
+
 test('generates an encoded Google Calendar template URL', () => {
   const googleUrl = generateGoogleCalendarUrl(
     assignment({
@@ -118,6 +145,84 @@ test('skips assignments without valid due dates', () => {
   assert.equal(downloadICS([noDate, invalidDate]), false);
 });
 
+test('downloads generated ICS content with a safe filename', async () => {
+  const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+  const originalRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  let capturedBlob;
+  let revokedUrl;
+  let appendedLink;
+  let clickCount = 0;
+  let removeCount = 0;
+  const link = {
+    href: '',
+    download: '',
+    hidden: false,
+    click() {
+      clickCount += 1;
+    },
+    remove() {
+      removeCount += 1;
+    },
+  };
+
+  try {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value(blob) {
+        capturedBlob = blob;
+        return 'blob:calendar-test';
+      },
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value(objectUrl) {
+        revokedUrl = objectUrl;
+      },
+    });
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        createElement(tagName) {
+          assert.equal(tagName, 'a');
+          return link;
+        },
+        body: {
+          append(node) {
+            appendedLink = node;
+          },
+        },
+      },
+    });
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        setTimeout(callback) {
+          callback();
+          return 1;
+        },
+      },
+    });
+
+    assert.equal(downloadICS([assignment()], 'course/week:1?.ics'), true);
+    assert.equal(capturedBlob.type, 'text/calendar;charset=utf-8');
+    assert.equal(await capturedBlob.text(), generateICS([assignment()]));
+    assert.equal(appendedLink, link);
+    assert.equal(link.href, 'blob:calendar-test');
+    assert.equal(link.download, 'course-week-1-.ics');
+    assert.equal(link.hidden, true);
+    assert.equal(clickCount, 1);
+    assert.equal(removeCount, 1);
+    assert.equal(revokedUrl, 'blob:calendar-test');
+  } finally {
+    restoreProperty(URL, 'createObjectURL', originalCreateObjectUrl);
+    restoreProperty(URL, 'revokeObjectURL', originalRevokeObjectUrl);
+    restoreProperty(globalThis, 'document', originalDocument);
+    restoreProperty(globalThis, 'window', originalWindow);
+  }
+});
+
 test('folds long Unicode content lines at 75 UTF-8 octets', () => {
   const longName = 'Deadline 🚀 '.repeat(12).trimEnd();
   const calendar = generateICS([assignment({ name: longName })]);
@@ -151,4 +256,13 @@ function unfoldICS(calendar) {
 
 function countOccurrences(value, searchValue) {
   return value.split(searchValue).length - 1;
+}
+
+function restoreProperty(target, propertyName, descriptor) {
+  if (descriptor) {
+    Object.defineProperty(target, propertyName, descriptor);
+    return;
+  }
+
+  delete target[propertyName];
 }

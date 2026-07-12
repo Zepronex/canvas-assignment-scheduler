@@ -87,7 +87,10 @@ export function Popup() {
     [assignments, classificationTime],
   );
   const calendarAssignments = useMemo(
-    () => visibleAssignments.filter(hasValidDueDate),
+    () =>
+      visibleAssignments.filter(
+        (assignment) => generateGoogleCalendarUrl(assignment) !== null,
+      ),
     [visibleAssignments],
   );
   const hasCredentials = settings ? hasCanvasSettings(settings) : false;
@@ -513,10 +516,6 @@ function AssignmentList({
 
 function sortCourses(courses: CanvasCourse[]): CanvasCourse[] {
   return [...courses].sort((first, second) => first.name.localeCompare(second.name));
-}
-
-function hasValidDueDate(assignment: NormalizedAssignment): boolean {
-  return Boolean(assignment.dueAt && !Number.isNaN(Date.parse(assignment.dueAt)));
 }
 
 function formatCalendarExportAvailability(visibleCount: number, exportableCount: number): string {

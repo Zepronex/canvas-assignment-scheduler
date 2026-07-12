@@ -542,6 +542,7 @@ h1 {
 .popup-panel .status-message {
   font-size: 0.76rem;
   margin: 0;
+  overflow-wrap: anywhere;
   padding: 8px 10px;
 }
 
