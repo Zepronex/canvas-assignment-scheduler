@@ -135,6 +135,22 @@ select:focus-visible {
   justify-content: space-between;
 }
 
+.reminder-summary {
+  align-items: center;
+  background: #eef4f7;
+  border-radius: 6px;
+  color: #344354;
+  display: flex;
+  font-size: 0.7rem;
+  justify-content: space-between;
+  min-height: 30px;
+  padding: 3px 7px 3px 9px;
+}
+
+.reminder-summary .text-button {
+  font-size: 0.7rem;
+}
+
 .sync-row > button {
   min-height: 34px;
   padding: 0 12px;
@@ -521,6 +537,102 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.reminder-settings-section {
+  border-top: 1px solid #e2e5e7;
+  margin-top: 28px;
+  padding-top: 24px;
+}
+
+.section-heading {
+  margin-bottom: 18px;
+}
+
+.section-heading h2 {
+  color: #18212f;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.reminder-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.reminder-settings-form > button {
+  align-self: flex-start;
+}
+
+.toggle-setting {
+  align-items: flex-start;
+  background: #f5f8f9;
+  border: 1px solid #d8dddf;
+  border-radius: 8px;
+  color: #253242;
+  cursor: pointer;
+  display: flex;
+  gap: 11px;
+  padding: 14px;
+}
+
+.toggle-setting input,
+.reminder-window-option input {
+  accent-color: #145a7a;
+  flex: 0 0 auto;
+  min-height: 18px;
+  width: 18px;
+}
+
+.toggle-setting span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-setting small {
+  color: #526070;
+  font-weight: 400;
+}
+
+.reminder-window-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.reminder-window-fieldset legend {
+  color: #253242;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.reminder-window-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.reminder-window-option {
+  align-items: center;
+  border: 1px solid #d8dddf;
+  border-radius: 6px;
+  color: #253242;
+  cursor: pointer;
+  display: flex;
+  font-weight: 700;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 11px;
+}
+
+.reminder-window-option:has(input:checked) {
+  background: #eef4f7;
+  border-color: #8db4c5;
 }
 
 .secondary-button {

@@ -7,7 +7,14 @@
     "default_title": "Canvas Deadline Copilot",
     "default_popup": "popup.html"
   },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "128": "icon128.png"
+  },
   "options_page": "options.html",
-  "permissions": ["storage"],
+  "permissions": ["alarms", "notifications", "storage"],
   "optional_host_permissions": ["https://*/*"]
 }

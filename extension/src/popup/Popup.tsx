@@ -7,7 +7,13 @@ import {
 import { downloadICS, generateGoogleCalendarUrl } from '../lib/calendar';
 import { hasCanvasSettings, syncCanvasAssignments } from '../lib/canvas';
 import { ensureCanvasHostPermission } from '../lib/permissions';
-import { getAssignmentCache, getSettings, saveAssignmentCache } from '../lib/storage';
+import { notifyAssignmentsUpdated } from '../lib/messages';
+import {
+  getAssignmentCache,
+  getReminderSettings,
+  getSettings,
+  saveAssignmentCache,
+} from '../lib/storage';
 import type {
   AssignmentStatus,
   AssignmentStatusFilter,
@@ -15,6 +21,7 @@ import type {
   CanvasCourse,
   CanvasSettings,
   NormalizedAssignment,
+  ReminderSettings,
 } from '../types';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -42,6 +49,7 @@ export function Popup() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [settings, setSettings] = useState<CanvasSettings | null>(null);
   const [syncResult, setSyncResult] = useState<AssignmentSyncResult | null>(null);
+  const [reminderSettings, setReminderSettings] = useState<ReminderSettings | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [calendarFeedback, setCalendarFeedback] = useState<CalendarFeedback | null>(null);
@@ -101,14 +109,15 @@ export function Popup() {
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getSettings(), getAssignmentCache()])
-      .then(([storedSettings, cachedResult]) => {
+    Promise.all([getSettings(), getAssignmentCache(), getReminderSettings()])
+      .then(([storedSettings, cachedResult, storedReminderSettings]) => {
         if (!isMounted) {
           return;
         }
 
         setSettings(storedSettings);
         setSyncResult(cachedResult);
+        setReminderSettings(storedReminderSettings);
         setLoadState('ready');
       })
       .catch(() => {
@@ -148,6 +157,7 @@ export function Popup() {
       await ensureCanvasHostPermission(settings.canvasUrl);
       const nextResult = await syncCanvasAssignments(settings);
       await saveAssignmentCache(nextResult);
+      await notifyAssignmentsUpdated();
       setSyncResult(nextResult);
       setClassificationTime(new Date());
     } catch (error) {
@@ -227,6 +237,17 @@ export function Popup() {
             {hasCredentials ? 'Settings' : 'Open settings'}
           </button>
         </header>
+
+        {loadState === 'ready' && reminderSettings && (
+          <div className="reminder-summary" aria-label="Browser reminder status">
+            <span>
+              Browser reminders are <strong>{reminderSettings.enabled ? 'on' : 'off'}</strong>
+            </span>
+            <button type="button" className="text-button" onClick={openSettings}>
+              Reminder settings
+            </button>
+          </div>
+        )}
 
         {loadState === 'loading' && (
           <p className="status-message status-idle" role="status">
