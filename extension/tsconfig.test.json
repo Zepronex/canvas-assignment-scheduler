@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "noEmit": false,
+    "outDir": ".test-build",
+    "rootDir": "src",
+    "sourceMap": false
+  },
+  "include": [
+    "src/lib/assignments.ts",
+    "src/lib/calendar.ts",
+    "src/lib/canvas.ts",
+    "src/lib/diagnostics.ts",
+    "src/lib/messages.ts",
+    "src/lib/permissions.ts",
+    "src/lib/reminders.ts",
+    "src/lib/reminderRuntime.ts",
+    "src/lib/storage.ts",
+    "src/lib/urls.ts",
+    "src/types.ts"
+  ]
+}
