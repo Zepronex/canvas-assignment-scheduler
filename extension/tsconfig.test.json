@@ -11,6 +11,7 @@
     "src/lib/assignments.ts",
     "src/lib/calendar.ts",
     "src/lib/canvas.ts",
+    "src/lib/reminders.ts",
     "src/lib/storage.ts",
     "src/types.ts"
   ]

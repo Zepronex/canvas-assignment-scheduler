@@ -34,6 +34,13 @@ export interface CanvasSettings {
   canvasToken: string;
 }
 
+export type ReminderWindowMinutes = 10080 | 1440 | 120 | 30;
+
+export interface ReminderSettings {
+  enabled: boolean;
+  windows: ReminderWindowMinutes[];
+}
+
 export interface AssignmentSyncResult {
   courses: CanvasCourse[];
   assignments: NormalizedAssignment[];
