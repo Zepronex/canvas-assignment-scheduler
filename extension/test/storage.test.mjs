@@ -4,6 +4,10 @@ import test from 'node:test';
 import {
   clearAssignmentCache,
   getAssignmentCache,
+  getReminderDeliveryHistory,
+  getReminderSettings,
+  markReminderDelivered,
+  saveReminderSettings,
   saveSettings,
   saveAssignmentCache,
   STORAGE_KEYS,
@@ -84,6 +88,47 @@ test('saving unchanged Canvas settings preserves the current cache', async () =>
   await saveSettings(settings);
 
   assert.deepEqual(storedValues[STORAGE_KEYS.assignmentCache], result);
+});
+
+test('reminders default to disabled with all supported windows selected', async () => {
+  installChromeStorage();
+
+  assert.deepEqual(await getReminderSettings(), {
+    enabled: false,
+    windows: [10080, 1440, 120, 30],
+  });
+});
+
+test('reminder settings are normalized and require a window when enabled', async () => {
+  const storedValues = installChromeStorage();
+
+  await saveReminderSettings({ enabled: true, windows: [1440, 30, 30] });
+  assert.deepEqual(storedValues[STORAGE_KEYS.reminderSettings], {
+    enabled: true,
+    windows: [1440, 30],
+  });
+  await assert.rejects(
+    saveReminderSettings({ enabled: true, windows: [] }),
+    /Select at least one reminder window/,
+  );
+});
+
+test('delivered reminder history stores notification click routes without credentials', async () => {
+  const storedValues = installChromeStorage();
+
+  await markReminderDelivered(
+    'alarm-id',
+    'https://canvas.example.edu/courses/42/assignments/7',
+    1_750_000_000_000,
+  );
+
+  assert.deepEqual(await getReminderDeliveryHistory(), {
+    'alarm-id': {
+      deliveredAt: 1_750_000_000_000,
+      assignmentUrl: 'https://canvas.example.edu/courses/42/assignments/7',
+    },
+  });
+  assert.equal(JSON.stringify(storedValues).includes('token-value'), false);
 });
 
 function installChromeStorage(initialValues = {}) {

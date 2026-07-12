@@ -4,18 +4,26 @@ import type {
   CanvasCourse,
   CanvasSettings,
   NormalizedAssignment,
+  ReminderDeliveryHistory,
+  ReminderSettings,
+  ReminderWindowMinutes,
 } from '../types';
+import { DEFAULT_REMINDER_SETTINGS, isReminderWindow } from './reminders.js';
 
 export const STORAGE_KEYS = {
   settings: 'settings',
   assignmentCache: 'assignmentCache',
   assignmentNotes: 'assignmentNotes',
+  reminderSettings: 'reminderSettings',
+  reminderDeliveryHistory: 'reminderDeliveryHistory',
 } as const;
 
 interface LocalStorageSchema {
   [STORAGE_KEYS.settings]: CanvasSettings;
   [STORAGE_KEYS.assignmentCache]: AssignmentSyncResult;
   [STORAGE_KEYS.assignmentNotes]: AssignmentNotes;
+  [STORAGE_KEYS.reminderSettings]: ReminderSettings;
+  [STORAGE_KEYS.reminderDeliveryHistory]: ReminderDeliveryHistory;
 }
 
 export async function getSettings(): Promise<CanvasSettings> {
@@ -90,6 +98,79 @@ export async function clearAssignmentCache(): Promise<void> {
   await removeStoredValue(STORAGE_KEYS.assignmentCache);
 }
 
+export async function getReminderSettings(): Promise<ReminderSettings> {
+  const stored = await getStoredValue<unknown>(STORAGE_KEYS.reminderSettings);
+  if (!isRecord(stored) || typeof stored.enabled !== 'boolean' || !Array.isArray(stored.windows)) {
+    return cloneDefaultReminderSettings();
+  }
+
+  const windows = stored.windows.filter(
+    (window): window is ReminderWindowMinutes =>
+      typeof window === 'number' && isReminderWindow(window),
+  );
+  if (windows.length !== stored.windows.length) {
+    return cloneDefaultReminderSettings();
+  }
+
+  return {
+    enabled: stored.enabled,
+    windows: [...new Set(windows)],
+  };
+}
+
+export async function saveReminderSettings(settings: ReminderSettings): Promise<void> {
+  const windows = [...new Set(settings.windows)].filter(isReminderWindow);
+  if (settings.enabled && windows.length === 0) {
+    throw new Error('Select at least one reminder window before enabling reminders.');
+  }
+
+  await setStoredValue(STORAGE_KEYS.reminderSettings, {
+    enabled: settings.enabled,
+    windows,
+  });
+}
+
+export async function getReminderDeliveryHistory(): Promise<ReminderDeliveryHistory> {
+  const stored = await getStoredValue<unknown>(STORAGE_KEYS.reminderDeliveryHistory);
+  if (!isRecord(stored)) {
+    return {};
+  }
+
+  const history: ReminderDeliveryHistory = {};
+  for (const [alarmName, value] of Object.entries(stored)) {
+    if (
+      isRecord(value) &&
+      typeof value.deliveredAt === 'number' &&
+      Number.isFinite(value.deliveredAt) &&
+      (value.assignmentUrl === null || typeof value.assignmentUrl === 'string')
+    ) {
+      history[alarmName] = {
+        deliveredAt: value.deliveredAt,
+        assignmentUrl: value.assignmentUrl,
+      };
+    }
+  }
+
+  return history;
+}
+
+export async function markReminderDelivered(
+  alarmName: string,
+  assignmentUrl: string | null,
+  deliveredAt: number = Date.now(),
+): Promise<void> {
+  const history = await getReminderDeliveryHistory();
+  const recentEntries = Object.entries(history)
+    .filter(([, record]) => record.deliveredAt >= deliveredAt - 90 * 24 * 60 * 60 * 1_000)
+    .sort(([, first], [, second]) => second.deliveredAt - first.deliveredAt)
+    .slice(0, 1_999);
+
+  await setStoredValue(STORAGE_KEYS.reminderDeliveryHistory, {
+    ...Object.fromEntries(recentEntries),
+    [alarmName]: { deliveredAt, assignmentUrl },
+  });
+}
+
 async function getStoredValue<T>(key: keyof LocalStorageSchema): Promise<T | undefined> {
   const storage = getChromeStorage();
 
@@ -155,6 +236,13 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   }
 
   return Object.values(value).every((item) => typeof item === 'string');
+}
+
+function cloneDefaultReminderSettings(): ReminderSettings {
+  return {
+    enabled: DEFAULT_REMINDER_SETTINGS.enabled,
+    windows: [...DEFAULT_REMINDER_SETTINGS.windows],
+  };
 }
 
 function isAssignmentSyncResult(value: unknown): value is AssignmentSyncResult {

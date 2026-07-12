@@ -41,6 +41,13 @@ export interface ReminderSettings {
   windows: ReminderWindowMinutes[];
 }
 
+export interface ReminderDeliveryRecord {
+  deliveredAt: number;
+  assignmentUrl: string | null;
+}
+
+export type ReminderDeliveryHistory = Record<string, ReminderDeliveryRecord>;
+
 export interface AssignmentSyncResult {
   courses: CanvasCourse[];
   assignments: NormalizedAssignment[];

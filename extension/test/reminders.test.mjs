@@ -4,9 +4,11 @@ import test from 'node:test';
 import {
   buildReminderAlarmName,
   buildReminderSchedule,
+  getReminderNotificationUrl,
   parseReminderAlarmName,
   reconcileReminderAlarms,
 } from '../.test-build/lib/reminders.js';
+import { applyReminderAlarmReconciliation } from '../.test-build/lib/reminderRuntime.js';
 
 const NOW = new Date('2026-07-12T10:00:00.000Z');
 
@@ -140,6 +142,59 @@ test('partial sync results schedule valid assignments from successful courses', 
       [10, 7],
       [20, 8],
     ],
+  );
+});
+
+test('alarm API reconciliation clears stale alarms before creating missing alarms', async () => {
+  const schedule = buildReminderSchedule([assignment()], reminderSettings([30]), NOW);
+  const calls = [];
+
+  await applyReminderAlarmReconciliation(
+    {
+      alarmNamesToClear: ['stale-alarm'],
+      alarmsToCreate: schedule,
+    },
+    {
+      async clear(alarmName) {
+        calls.push(['clear', alarmName]);
+      },
+      create(alarmName, scheduledTime) {
+        calls.push(['create', alarmName, scheduledTime]);
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    ['clear', 'stale-alarm'],
+    ['create', schedule[0].alarmName, schedule[0].scheduledTime],
+  ]);
+});
+
+test('notification click routing accepts only stored HTTPS assignment URLs', () => {
+  const notificationId = 'canvas-deadline:reminder:v1:42:7:30:1784541600000';
+  assert.equal(
+    getReminderNotificationUrl(
+      {
+        [notificationId]: {
+          deliveredAt: NOW.getTime(),
+          assignmentUrl: 'https://canvas.example.edu/courses/42/assignments/7',
+        },
+      },
+      notificationId,
+    ),
+    'https://canvas.example.edu/courses/42/assignments/7',
+  );
+  assert.equal(
+    getReminderNotificationUrl(
+      {
+        [notificationId]: {
+          deliveredAt: NOW.getTime(),
+          assignmentUrl: 'javascript:alert(1)',
+        },
+      },
+      notificationId,
+    ),
+    null,
   );
 });
 

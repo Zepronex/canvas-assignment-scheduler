@@ -1,5 +1,6 @@
 import type {
   NormalizedAssignment,
+  ReminderDeliveryHistory,
   ReminderSettings,
   ReminderWindowMinutes,
 } from '../types';
@@ -168,6 +169,23 @@ export function findAssignmentForReminder(
 
 export function formatReminderTimeRemaining(windowMinutes: ReminderWindowMinutes): string {
   return REMINDER_WINDOW_OPTIONS.find(({ minutes }) => minutes === windowMinutes)?.label ?? '';
+}
+
+export function getReminderNotificationUrl(
+  history: ReminderDeliveryHistory,
+  notificationId: string,
+): string | null {
+  const assignmentUrl = history[notificationId]?.assignmentUrl;
+  if (!assignmentUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(assignmentUrl);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function isReminderWindow(value: number): value is ReminderWindowMinutes {

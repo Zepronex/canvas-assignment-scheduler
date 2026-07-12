@@ -7,6 +7,7 @@ import {
 import { downloadICS, generateGoogleCalendarUrl } from '../lib/calendar';
 import { hasCanvasSettings, syncCanvasAssignments } from '../lib/canvas';
 import { ensureCanvasHostPermission } from '../lib/permissions';
+import { notifyAssignmentsUpdated } from '../lib/messages';
 import { getAssignmentCache, getSettings, saveAssignmentCache } from '../lib/storage';
 import type {
   AssignmentStatus,
@@ -148,6 +149,7 @@ export function Popup() {
       await ensureCanvasHostPermission(settings.canvasUrl);
       const nextResult = await syncCanvasAssignments(settings);
       await saveAssignmentCache(nextResult);
+      await notifyAssignmentsUpdated();
       setSyncResult(nextResult);
       setClassificationTime(new Date());
     } catch (error) {
