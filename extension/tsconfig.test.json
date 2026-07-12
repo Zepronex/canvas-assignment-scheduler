@@ -9,6 +9,7 @@
   },
   "include": [
     "src/lib/assignments.ts",
+    "src/lib/calendar.ts",
     "src/lib/canvas.ts",
     "src/lib/storage.ts",
     "src/types.ts"
