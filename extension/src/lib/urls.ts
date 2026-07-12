@@ -9,6 +9,7 @@ export function getSafeHttpsUrl(value: string): string | null {
     if (
       url.protocol !== 'https:' ||
       !url.hostname ||
+      url.hostname.includes('*') ||
       url.username.length > 0 ||
       url.password.length > 0
     ) {
