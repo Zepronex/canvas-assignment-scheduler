@@ -1,8 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { normalizeCanvasBaseUrl, validateCanvasConnection } from '../lib/canvas';
 import { ensureCanvasHostPermission } from '../lib/permissions';
-import { getSettings, saveSettings } from '../lib/storage';
-import type { CanvasSettings } from '../types';
+import { REMINDER_WINDOW_OPTIONS } from '../lib/reminders';
+import {
+  getReminderSettings,
+  getSettings,
+  saveReminderSettings,
+  saveSettings,
+} from '../lib/storage';
+import type { CanvasSettings, ReminderSettings, ReminderWindowMinutes } from '../types';
 
 type SaveStatus =
   | { state: 'idle'; message: '' }
@@ -14,12 +20,26 @@ type SaveStatus =
 
 const EMPTY_STATUS: SaveStatus = { state: 'idle', message: '' };
 
+type ReminderSaveStatus =
+  | { state: 'idle'; message: '' }
+  | { state: 'saving'; message: 'Saving reminder settings...' }
+  | { state: 'saved'; message: 'Reminder settings saved.' }
+  | { state: 'error'; message: string };
+
+const EMPTY_REMINDER_STATUS: ReminderSaveStatus = { state: 'idle', message: '' };
+
 export function OptionsPage() {
   const [settings, setSettings] = useState<CanvasSettings>({
     canvasUrl: '',
     canvasToken: '',
   });
   const [status, setStatus] = useState<SaveStatus>(EMPTY_STATUS);
+  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>({
+    enabled: false,
+    windows: [],
+  });
+  const [reminderStatus, setReminderStatus] =
+    useState<ReminderSaveStatus>(EMPTY_REMINDER_STATUS);
   const isSaving = status.state === 'saving';
   const isTesting = status.state === 'testing';
   const isBusy = isSaving || isTesting;
@@ -27,10 +47,11 @@ export function OptionsPage() {
   useEffect(() => {
     let isMounted = true;
 
-    getSettings()
-      .then((storedSettings) => {
+    Promise.all([getSettings(), getReminderSettings()])
+      .then(([storedSettings, storedReminderSettings]) => {
         if (isMounted) {
           setSettings(storedSettings);
+          setReminderSettings(storedReminderSettings);
         }
       })
       .catch((error: unknown) => {
@@ -116,6 +137,31 @@ export function OptionsPage() {
     }
   };
 
+  const handleReminderSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setReminderStatus({ state: 'saving', message: 'Saving reminder settings...' });
+
+    try {
+      await saveReminderSettings(reminderSettings);
+      setReminderStatus({ state: 'saved', message: 'Reminder settings saved.' });
+    } catch (error) {
+      setReminderStatus({
+        state: 'error',
+        message: getErrorMessage(error, 'Unable to save reminder settings.'),
+      });
+    }
+  };
+
+  const toggleReminderWindow = (windowMinutes: ReminderWindowMinutes) => {
+    setReminderStatus(EMPTY_REMINDER_STATUS);
+    setReminderSettings((current) => ({
+      ...current,
+      windows: current.windows.includes(windowMinutes)
+        ? current.windows.filter((window) => window !== windowMinutes)
+        : [...current.windows, windowMinutes],
+    }));
+  };
+
   return (
     <main className="options-shell">
       <section className="settings-panel">
@@ -169,6 +215,68 @@ export function OptionsPage() {
             {status.message}
           </p>
         )}
+
+        <section className="reminder-settings-section" aria-labelledby="reminder-settings-title">
+          <div className="section-heading">
+            <p className="eyebrow">Browser notifications</p>
+            <h2 id="reminder-settings-title">Deadline reminders</h2>
+            <p className="muted-copy">
+              Opt in to Chrome notifications before selected Canvas deadlines. Overdue assignments and assignments without due dates never trigger reminders.
+            </p>
+          </div>
+
+          <form className="reminder-settings-form" onSubmit={handleReminderSubmit}>
+            <label className="toggle-setting">
+              <input
+                type="checkbox"
+                checked={reminderSettings.enabled}
+                onChange={(event) => {
+                  setReminderStatus(EMPTY_REMINDER_STATUS);
+                  setReminderSettings((current) => ({
+                    ...current,
+                    enabled: event.target.checked,
+                  }));
+                }}
+              />
+              <span>
+                <strong>Enable browser reminders</strong>
+                <small>Notifications are off by default and run without keeping the popup open.</small>
+              </span>
+            </label>
+
+            <fieldset className="reminder-window-fieldset">
+              <legend>Notify me before a deadline</legend>
+              <div className="reminder-window-grid">
+                {REMINDER_WINDOW_OPTIONS.map(({ minutes, label }) => (
+                  <label key={minutes} className="reminder-window-option">
+                    <input
+                      type="checkbox"
+                      checked={reminderSettings.windows.includes(minutes)}
+                      onChange={() => toggleReminderWindow(minutes)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <button
+              type="submit"
+              disabled={reminderStatus.state === 'saving'}
+            >
+              {reminderStatus.state === 'saving' ? 'Saving...' : 'Save reminder settings'}
+            </button>
+          </form>
+
+          {reminderStatus.message && (
+            <p
+              className={`status-message status-${reminderStatus.state}`}
+              role={reminderStatus.state === 'error' ? 'alert' : 'status'}
+            >
+              {reminderStatus.message}
+            </p>
+          )}
+        </section>
       </section>
     </main>
   );
