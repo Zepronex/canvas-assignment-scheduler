@@ -75,7 +75,9 @@ select:focus-visible {
   align-items: stretch;
   background: #f4f6f7;
   display: flex;
+  max-height: 580px;
   min-height: 220px;
+  overflow: hidden;
   width: 410px;
 }
 
@@ -84,8 +86,14 @@ select:focus-visible {
   flex: 1;
   flex-direction: column;
   gap: 10px;
+  max-height: 580px;
   min-width: 0;
+  overflow: hidden;
   padding: 14px;
+}
+
+.popup-panel > * {
+  flex-shrink: 0;
 }
 
 .popup-header {
@@ -237,13 +245,53 @@ select:focus-visible {
   font-size: 0.7rem;
 }
 
+.calendar-export-toolbar {
+  align-items: center;
+  background: #eef4f7;
+  border: 1px solid #cedde4;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 8px 9px;
+}
+
+.calendar-export-copy {
+  color: #526070;
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  font-size: 0.66rem;
+  line-height: 1.3;
+  margin: 0;
+  min-width: 0;
+}
+
+.calendar-export-copy strong {
+  color: #29485a;
+  font-size: 0.72rem;
+}
+
+.bulk-export-button {
+  flex: 0 1 140px;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  min-height: 32px;
+  padding: 4px 9px;
+  text-align: center;
+  white-space: normal;
+}
+
 .assignment-list {
   display: flex;
+  flex: 1 1 220px;
   flex-direction: column;
   gap: 7px;
   list-style: none;
   margin: 0;
   max-height: 220px;
+  min-height: 80px;
   overflow-y: auto;
   padding: 1px 3px 3px 1px;
   scrollbar-color: #aab7bf transparent;
@@ -344,6 +392,58 @@ select:focus-visible {
 
 .canvas-link-button:hover {
   background: #dbe9ef;
+}
+
+.assignment-calendar-actions {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  margin-top: 8px;
+}
+
+.assignment-calendar-action {
+  align-items: center;
+  border-radius: 5px;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  justify-content: center;
+  line-height: 1.2;
+  min-height: 30px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 4px 6px;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+}
+
+button.assignment-calendar-action {
+  min-height: 30px;
+  padding: 4px 6px;
+}
+
+.assignment-google-action {
+  background: #eef4f7;
+  border: 1px solid #c5d7df;
+  color: #145a7a;
+}
+
+.assignment-google-action:hover {
+  background: #dbe9ef;
+}
+
+button.assignment-google-action:disabled {
+  background: #eef1f3;
+  border-color: #d8dddf;
+  color: #667382;
+}
+
+.calendar-unavailable {
+  color: #667382;
+  font-size: 0.64rem;
+  line-height: 1.3;
+  margin: 5px 0 0;
 }
 
 .options-shell {

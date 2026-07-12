@@ -4,6 +4,7 @@ import {
   getAssignmentStatus,
   getAssignmentStatusCounts,
 } from '../lib/assignments';
+import { downloadICS, generateGoogleCalendarUrl } from '../lib/calendar';
 import { hasCanvasSettings, syncCanvasAssignments } from '../lib/canvas';
 import { ensureCanvasHostPermission } from '../lib/permissions';
 import { getAssignmentCache, getSettings, saveAssignmentCache } from '../lib/storage';
@@ -17,6 +18,7 @@ import type {
 } from '../types';
 
 type LoadState = 'loading' | 'ready' | 'error';
+type CalendarFeedback = { tone: 'success' | 'error'; message: string };
 
 const STATUS_OPTIONS: ReadonlyArray<{
   value: AssignmentStatusFilter;
@@ -42,6 +44,7 @@ export function Popup() {
   const [syncResult, setSyncResult] = useState<AssignmentSyncResult | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [calendarFeedback, setCalendarFeedback] = useState<CalendarFeedback | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<AssignmentStatusFilter>('all');
@@ -76,6 +79,17 @@ export function Popup() {
       }),
     [allAssignments, classificationTime, searchQuery, selectedCourseId, statusFilter],
   );
+  const visibleAssignments = useMemo(
+    () =>
+      assignments.filter(
+        (assignment) => getAssignmentStatus(assignment, classificationTime) !== null,
+      ),
+    [assignments, classificationTime],
+  );
+  const calendarAssignments = useMemo(
+    () => visibleAssignments.filter(hasValidDueDate),
+    [visibleAssignments],
+  );
   const hasCredentials = settings ? hasCanvasSettings(settings) : false;
   const hasActiveFilters = Boolean(
     searchQuery.trim() || selectedCourseId !== null || statusFilter !== 'all',
@@ -105,6 +119,10 @@ export function Popup() {
     };
   }, []);
 
+  useEffect(() => {
+    setCalendarFeedback(null);
+  }, [searchQuery, selectedCourseId, statusFilter]);
+
   const openSettings = () => {
     if (chrome.runtime.openOptionsPage) {
       chrome.runtime.openOptionsPage();
@@ -121,6 +139,7 @@ export function Popup() {
 
     setIsSyncing(true);
     setSyncError(null);
+    setCalendarFeedback(null);
 
     try {
       await ensureCanvasHostPermission(settings.canvasUrl);
@@ -140,6 +159,57 @@ export function Popup() {
     setSearchQuery('');
     setSelectedCourseId(null);
     setStatusFilter('all');
+  };
+
+  const handleAssignmentExport = (assignment: NormalizedAssignment) => {
+    try {
+      const downloaded = downloadICS(
+        [assignment],
+        `canvas-assignment-${assignment.courseId}-${assignment.id}.ics`,
+      );
+
+      setCalendarFeedback(
+        downloaded
+          ? { tone: 'success', message: `Exported ${assignment.name} as an ICS file.` }
+          : {
+              tone: 'error',
+              message: `${assignment.name} needs a valid due date before it can be exported.`,
+            },
+      );
+    } catch {
+      setCalendarFeedback({
+        tone: 'error',
+        message: `Unable to export ${assignment.name}. Try again.`,
+      });
+    }
+  };
+
+  const handleBulkExport = () => {
+    try {
+      if (!downloadICS(calendarAssignments)) {
+        setCalendarFeedback({
+          tone: 'error',
+          message: 'No visible assignments have valid due dates to export.',
+        });
+        return;
+      }
+
+      const exportedLabel = calendarAssignments.length === 1 ? 'assignment' : 'assignments';
+      const skippedCount = visibleAssignments.length - calendarAssignments.length;
+      const skippedMessage = skippedCount
+        ? ` ${skippedCount} without a valid due date ${skippedCount === 1 ? 'was' : 'were'} skipped.`
+        : '';
+
+      setCalendarFeedback({
+        tone: 'success',
+        message: `Exported ${calendarAssignments.length} visible ${exportedLabel} as one ICS file.${skippedMessage}`,
+      });
+    } catch {
+      setCalendarFeedback({
+        tone: 'error',
+        message: 'Unable to export the visible assignments. Try again.',
+      });
+    }
   };
 
   return (
@@ -204,7 +274,7 @@ export function Popup() {
           </p>
         )}
 
-        {loadState === 'ready' && overallStatusCounts.all > 0 && (
+        {loadState === 'ready' && Boolean(syncResult) && (
           <section className="dashboard-controls" aria-label="Assignment filters">
             <div className="filter-grid">
               <label className="filter-field search-field">
@@ -256,7 +326,7 @@ export function Popup() {
 
             <div className="filter-summary" aria-live="polite">
               <span>
-                Showing {assignments.length} of {statusCounts.all}
+                Showing {visibleAssignments.length} of {statusCounts.all}
               </span>
               <button
                 type="button"
@@ -270,13 +340,48 @@ export function Popup() {
           </section>
         )}
 
+        {loadState === 'ready' && overallStatusCounts.all > 0 && (
+          <section className="calendar-export-toolbar" aria-labelledby="calendar-export-title">
+            <p className="calendar-export-copy">
+              <strong id="calendar-export-title">Calendar export</strong>
+              <span>
+                {formatCalendarExportAvailability(
+                  visibleAssignments.length,
+                  calendarAssignments.length,
+                )}
+              </span>
+            </p>
+            <button
+              type="button"
+              className="bulk-export-button"
+              onClick={handleBulkExport}
+              disabled={calendarAssignments.length === 0}
+              aria-label="Export all visible assignments with due dates as one ICS file"
+            >
+              Export visible ICS
+            </button>
+          </section>
+        )}
+
+        {calendarFeedback && (
+          <p
+            className={`status-message ${
+              calendarFeedback.tone === 'success' ? 'status-saved' : 'status-error'
+            }`}
+            role={calendarFeedback.tone === 'success' ? 'status' : 'alert'}
+          >
+            {calendarFeedback.message}
+          </p>
+        )}
+
         {loadState === 'ready' && (
           <AssignmentList
-            assignments={assignments}
+            assignments={visibleAssignments}
             classificationTime={classificationTime}
             hasActiveFilters={hasActiveFilters}
             hasCache={Boolean(syncResult)}
             hasPublishedAssignments={overallStatusCounts.all > 0}
+            onExportAssignment={handleAssignmentExport}
           />
         )}
       </section>
@@ -290,12 +395,14 @@ function AssignmentList({
   hasActiveFilters,
   hasCache,
   hasPublishedAssignments,
+  onExportAssignment,
 }: {
-  assignments: NormalizedAssignment[];
+  assignments: readonly NormalizedAssignment[];
   classificationTime: Date;
   hasActiveFilters: boolean;
   hasCache: boolean;
   hasPublishedAssignments: boolean;
+  onExportAssignment: (assignment: NormalizedAssignment) => void;
 }) {
   if (assignments.length === 0) {
     let message = 'No assignments cached yet. Sync to load your Canvas deadlines.';
@@ -316,6 +423,11 @@ function AssignmentList({
         if (!status) {
           return null;
         }
+
+        const googleCalendarUrl = generateGoogleCalendarUrl(assignment);
+        const unavailableMessageId = googleCalendarUrl
+          ? undefined
+          : `calendar-unavailable-${assignment.courseId}-${assignment.id}`;
 
         return (
           <li className="assignment-card" key={`${assignment.courseId}-${assignment.id}`}>
@@ -348,6 +460,50 @@ function AssignmentList({
                 Open in Canvas
               </a>
             </div>
+
+            <div
+              className="assignment-calendar-actions"
+              role="group"
+              aria-label={`Calendar actions for ${assignment.name}`}
+            >
+              <button
+                type="button"
+                className="assignment-calendar-action assignment-ics-action"
+                onClick={() => onExportAssignment(assignment)}
+                disabled={!googleCalendarUrl}
+                aria-label={`Export ${assignment.name} as an ICS file`}
+                aria-describedby={unavailableMessageId}
+              >
+                Export ICS
+              </button>
+              {googleCalendarUrl ? (
+                <a
+                  className="assignment-calendar-action assignment-google-action"
+                  href={googleCalendarUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={`Add ${assignment.name} to Google Calendar (opens in a new tab)`}
+                >
+                  Add to Google Calendar
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="assignment-calendar-action assignment-google-action"
+                  disabled
+                  aria-label={`Add ${assignment.name} to Google Calendar`}
+                  aria-describedby={unavailableMessageId}
+                >
+                  Add to Google Calendar
+                </button>
+              )}
+            </div>
+
+            {!googleCalendarUrl && (
+              <p className="calendar-unavailable" id={unavailableMessageId}>
+                A valid due date is required for calendar export.
+              </p>
+            )}
           </li>
         );
       })}
@@ -357,6 +513,23 @@ function AssignmentList({
 
 function sortCourses(courses: CanvasCourse[]): CanvasCourse[] {
   return [...courses].sort((first, second) => first.name.localeCompare(second.name));
+}
+
+function hasValidDueDate(assignment: NormalizedAssignment): boolean {
+  return Boolean(assignment.dueAt && !Number.isNaN(Date.parse(assignment.dueAt)));
+}
+
+function formatCalendarExportAvailability(visibleCount: number, exportableCount: number): string {
+  if (visibleCount === 0) {
+    return 'No assignments are visible.';
+  }
+
+  if (exportableCount === 0) {
+    return 'No visible assignments have valid due dates.';
+  }
+
+  const assignmentLabel = exportableCount === 1 ? 'assignment' : 'assignments';
+  return `${exportableCount} visible ${assignmentLabel} with due dates.`;
 }
 
 function formatSyncTime(value: string): string {
