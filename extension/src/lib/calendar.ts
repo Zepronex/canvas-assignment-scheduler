@@ -1,4 +1,5 @@
 import type { NormalizedAssignment } from '../types';
+import { getSafeHttpsUrl } from './urls.js';
 
 const GOOGLE_CALENDAR_TEMPLATE_URL = 'https://calendar.google.com/calendar/render';
 const DEFAULT_EVENT_DURATION_MINUTES = 60;
@@ -34,7 +35,7 @@ export function generateICS(assignments: readonly NormalizedAssignment[]): strin
     const endDate = addMinutes(dueDate, DEFAULT_EVENT_DURATION_MINUTES);
     const updatedDate = parseDate(assignment.updatedAt) ?? dueDate;
     const description = buildEventDescription(assignment);
-    const safeUrl = sanitizeUriProperty(assignment.htmlUrl);
+    const safeUrl = getSafeHttpsUrl(assignment.htmlUrl);
 
     contentLines.push(
       'BEGIN:VEVENT',
@@ -129,19 +130,25 @@ function buildEventTitle(assignment: NormalizedAssignment): string {
 }
 
 function buildEventDescription(assignment: NormalizedAssignment): string {
-  return [
+  const descriptionLines = [
     `Assignment: ${assignment.name}`,
     `Course: ${assignment.courseName}`,
     `Points: ${assignment.pointsPossible ?? 'N/A'}`,
-    `Canvas Link: ${assignment.htmlUrl}`,
-  ].join('\n');
+  ];
+  const safeUrl = getSafeHttpsUrl(assignment.htmlUrl);
+  if (safeUrl) {
+    descriptionLines.push(`Canvas Link: ${safeUrl}`);
+  }
+
+  return descriptionLines.join('\n');
 }
 
 function buildEventUid(assignment: NormalizedAssignment): string {
   let sourceDomain = 'canvas-deadline-copilot.invalid';
 
   try {
-    const hostname = new URL(assignment.htmlUrl).hostname.toLowerCase();
+    const safeUrl = getSafeHttpsUrl(assignment.htmlUrl);
+    const hostname = safeUrl ? new URL(safeUrl).hostname.toLowerCase() : '';
     const safeHostname = hostname.replace(/[^a-z0-9.-]/g, '-');
     if (safeHostname) {
       sourceDomain = safeHostname;
@@ -190,10 +197,6 @@ function escapeICSText(value: string): string {
     .replace(/\r\n|\r|\n/g, '\\n')
     .replace(/,/g, '\\,')
     .replace(/;/g, '\\;');
-}
-
-function sanitizeUriProperty(value: string): string {
-  return value.replace(/\r\n|\r|\n/g, '').trim();
 }
 
 function sanitizeFilename(value: string): string {

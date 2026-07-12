@@ -145,6 +145,17 @@ test('skips assignments without valid due dates', () => {
   assert.equal(downloadICS([noDate, invalidDate]), false);
 });
 
+test('omits unsafe assignment links from calendar payloads', () => {
+  const unsafeAssignment = assignment({ htmlUrl: 'javascript:alert(1)' });
+  const calendar = unfoldICS(generateICS([unsafeAssignment]));
+  const googleUrl = new URL(generateGoogleCalendarUrl(unsafeAssignment));
+
+  assert.equal(calendar.includes('URL:'), false);
+  assert.equal(calendar.includes('javascript:'), false);
+  assert.equal(googleUrl.searchParams.get('details').includes('Canvas Link:'), false);
+  assert.equal(googleUrl.toString().includes('javascript'), false);
+});
+
 test('downloads generated ICS content with a safe filename', async () => {
   const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
   const originalRevokeObjectUrl = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');

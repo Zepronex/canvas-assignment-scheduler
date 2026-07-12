@@ -187,6 +187,31 @@ test('fetchCanvasAssignmentsForCourse uses the course assignments endpoint', asy
   assert.equal(assignments[0].points_possible, 0);
 });
 
+test('fetchCanvasAssignmentsForCourse rejects unsafe or cross-origin assignment links', async () => {
+  for (const html_url of [
+    'javascript:alert(1)',
+    'http://canvas.example.edu/courses/42/assignments/7',
+    'https://user:password@canvas.example.edu/courses/42/assignments/7',
+    'https://other.example.edu/courses/42/assignments/7',
+  ]) {
+    await assert.rejects(
+      fetchCanvasAssignmentsForCourse(canvasSettings(), 42, async () =>
+        jsonResponse([canvasAssignment({ html_url })]),
+      ),
+      isCanvasError('unexpected-response'),
+    );
+  }
+});
+
+test('fetchCanvasAssignmentsForCourse rejects timezone-less Canvas timestamps', async () => {
+  await assert.rejects(
+    fetchCanvasAssignmentsForCourse(canvasSettings(), 42, async () =>
+      jsonResponse([canvasAssignment({ due_at: '2026-07-12T14:00:00' })]),
+    ),
+    isCanvasError('unexpected-response'),
+  );
+});
+
 test('fetchPaginatedCanvasGet rejects malformed pages and cross-origin next links', async () => {
   await assert.rejects(
     fetchPaginatedCanvasGet(canvasSettings(), '/api/v1/courses', {}, async () =>
@@ -206,6 +231,17 @@ test('fetchPaginatedCanvasGet rejects malformed pages and cross-origin next link
     isCanvasError('unexpected-response'),
   );
   assert.equal(requestCount, 1);
+
+  await assert.rejects(
+    fetchPaginatedCanvasGet(canvasSettings(), '/api/v1/courses', {}, async () =>
+      jsonResponse([], {
+        headers: {
+          Link: '<https://user:password@canvas.example.edu/api/v1/courses?page=2>; rel="next"',
+        },
+      }),
+    ),
+    isCanvasError('unexpected-response'),
+  );
 });
 
 test('fetchCanvasCourses rejects malformed course items', async () => {

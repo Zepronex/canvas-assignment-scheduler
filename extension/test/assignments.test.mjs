@@ -46,6 +46,63 @@ test('uses local calendar-day boundaries and excludes unpublished assignments', 
   assert.equal(getAssignmentStatus(unpublished, NOW), null);
 });
 
+test('uses the local calendar date across daylight-saving transitions', () => {
+  const originalTimezone = process.env.TZ;
+
+  try {
+    process.env.TZ = 'America/New_York';
+    assert.equal(
+      new Intl.DateTimeFormat().resolvedOptions().timeZone,
+      'America/New_York',
+    );
+
+    const springNow = new Date('2026-03-08T05:30:00.000Z');
+    assert.equal(
+      getAssignmentStatus(
+        assignment({ dueAt: '2026-03-08T07:30:00.000Z' }),
+        springNow,
+      ),
+      'today',
+    );
+    assert.equal(
+      getAssignmentStatus(
+        assignment({ dueAt: '2026-03-08T04:59:59.000Z' }),
+        springNow,
+      ),
+      'overdue',
+    );
+    assert.equal(
+      getAssignmentStatus(
+        assignment({ dueAt: '2026-03-09T04:00:00.000Z' }),
+        springNow,
+      ),
+      'upcoming',
+    );
+
+    const fallNow = new Date('2026-11-01T04:30:00.000Z');
+    assert.equal(
+      getAssignmentStatus(
+        assignment({ dueAt: '2026-11-01T06:30:00.000Z' }),
+        fallNow,
+      ),
+      'today',
+    );
+    assert.equal(
+      getAssignmentStatus(
+        assignment({ dueAt: '2026-11-02T05:00:00.000Z' }),
+        fallNow,
+      ),
+      'upcoming',
+    );
+  } finally {
+    if (originalTimezone === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTimezone;
+    }
+  }
+});
+
 test('filters assignment names case-insensitively without matching course names', () => {
   const assignments = [
     assignment({ id: 1, name: 'Research Essay', courseName: 'History' }),

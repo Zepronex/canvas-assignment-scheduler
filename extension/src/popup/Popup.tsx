@@ -5,8 +5,16 @@ import {
   getAssignmentStatusCounts,
 } from '../lib/assignments';
 import { downloadICS, generateGoogleCalendarUrl } from '../lib/calendar';
-import { hasCanvasSettings, syncCanvasAssignments } from '../lib/canvas';
-import { ensureCanvasHostPermission } from '../lib/permissions';
+import {
+  CanvasConnectionError,
+  hasCanvasSettings,
+  syncCanvasAssignments,
+} from '../lib/canvas';
+import { formatPartialSyncWarning } from '../lib/diagnostics';
+import {
+  CanvasHostPermissionError,
+  ensureCanvasHostPermission,
+} from '../lib/permissions';
 import { notifyAssignmentsUpdated } from '../lib/messages';
 import {
   getAssignmentCache,
@@ -14,6 +22,7 @@ import {
   getSettings,
   saveAssignmentCache,
 } from '../lib/storage';
+import { getSafeHttpsUrl } from '../lib/urls';
 import type {
   AssignmentStatus,
   AssignmentStatusFilter,
@@ -136,12 +145,18 @@ export function Popup() {
   }, [searchQuery, selectedCourseId, statusFilter]);
 
   const openSettings = () => {
-    if (chrome.runtime.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
-      return;
-    }
+    const openFallback = () => window.open(chrome.runtime.getURL('options.html'));
 
-    window.open(chrome.runtime.getURL('options.html'));
+    try {
+      if (!chrome.runtime.openOptionsPage) {
+        openFallback();
+        return;
+      }
+
+      void chrome.runtime.openOptionsPage().catch(openFallback);
+    } catch {
+      openFallback();
+    }
   };
 
   const handleSync = async () => {
@@ -238,7 +253,7 @@ export function Popup() {
           </button>
         </header>
 
-        {loadState === 'ready' && reminderSettings && (
+        {loadState === 'ready' && hasCredentials && reminderSettings && (
           <div className="reminder-summary" aria-label="Browser reminder status">
             <span>
               Browser reminders are <strong>{reminderSettings.enabled ? 'on' : 'off'}</strong>
@@ -262,9 +277,20 @@ export function Popup() {
         )}
 
         {loadState === 'ready' && !hasCredentials && (
-          <p className="status-message status-idle">
-            Add your Canvas URL and API token before syncing assignments.
-          </p>
+          <section className="onboarding-card" aria-labelledby="onboarding-title">
+            <h2 id="onboarding-title">Keep Canvas deadlines in view</h2>
+            <p>
+              Sync assignments, filter deadlines, export calendar events, and opt in to
+              browser reminders.
+            </p>
+            <p className="onboarding-privacy">
+              Add your Canvas URL and API token to begin. Credentials stay in this
+              browser's local extension storage and are sent only to your Canvas site.
+            </p>
+            <button type="button" onClick={openSettings}>
+              Set up Canvas
+            </button>
+          </section>
         )}
 
         {loadState === 'ready' && hasCredentials && (
@@ -292,13 +318,16 @@ export function Popup() {
           </p>
         )}
 
-        {loadState === 'ready' && Boolean(syncResult?.failedCourseCount) && (
+        {loadState === 'ready' && hasCredentials && Boolean(syncResult?.failedCourseCount) && (
           <p className="status-message status-warning" role="status">
-            {formatCourseFailureWarning(syncResult?.failedCourseCount ?? 0)}
+            {formatPartialSyncWarning(syncResult?.failedCourseCount ?? 0)}
           </p>
         )}
 
-        {loadState === 'ready' && Boolean(syncResult) && (
+        {loadState === 'ready' &&
+          hasCredentials &&
+          Boolean(syncResult) &&
+          overallStatusCounts.all > 0 && (
           <section className="dashboard-controls" aria-label="Assignment filters">
             <div className="filter-grid">
               <label className="filter-field search-field">
@@ -364,7 +393,17 @@ export function Popup() {
           </section>
         )}
 
-        {loadState === 'ready' && overallStatusCounts.all > 0 && (
+        {loadState === 'ready' &&
+          hasCredentials &&
+          overallStatusCounts.all > 0 &&
+          overallStatusCounts['no-date'] === overallStatusCounts.all && (
+            <p className="status-message status-idle" role="status">
+              Canvas returned assignments, but none has a due date. They are listed below,
+              but cannot trigger reminders or calendar exports until Canvas provides dates.
+            </p>
+          )}
+
+        {loadState === 'ready' && hasCredentials && visibleAssignments.length > 0 && (
           <section className="calendar-export-toolbar" aria-labelledby="calendar-export-title">
             <p className="calendar-export-copy">
               <strong id="calendar-export-title">Calendar export</strong>
@@ -398,13 +437,14 @@ export function Popup() {
           </p>
         )}
 
-        {loadState === 'ready' && (
+        {loadState === 'ready' && hasCredentials && (
           <AssignmentList
             assignments={visibleAssignments}
             classificationTime={classificationTime}
             hasActiveFilters={hasActiveFilters}
             hasCache={Boolean(syncResult)}
             hasPublishedAssignments={overallStatusCounts.all > 0}
+            onClearFilters={clearFilters}
             onExportAssignment={handleAssignmentExport}
           />
         )}
@@ -419,6 +459,7 @@ function AssignmentList({
   hasActiveFilters,
   hasCache,
   hasPublishedAssignments,
+  onClearFilters,
   onExportAssignment,
 }: {
   assignments: readonly NormalizedAssignment[];
@@ -426,18 +467,30 @@ function AssignmentList({
   hasActiveFilters: boolean;
   hasCache: boolean;
   hasPublishedAssignments: boolean;
+  onClearFilters: () => void;
   onExportAssignment: (assignment: NormalizedAssignment) => void;
 }) {
   if (assignments.length === 0) {
     let message = 'No assignments cached yet. Sync to load your Canvas deadlines.';
 
     if (hasActiveFilters && hasPublishedAssignments) {
-      message = 'No assignments match these filters.';
+      return (
+        <div className="empty-state">
+          <p role="status">No assignments match the active filters.</p>
+          <button type="button" className="secondary-button" onClick={onClearFilters}>
+            Clear filters
+          </button>
+        </div>
+      );
     } else if (hasCache) {
-      message = 'No published assignments found in your active courses.';
+      message = 'Canvas returned no published assignments in your active courses.';
     }
 
-    return <p className="empty-state">{message}</p>;
+    return (
+      <p className="empty-state" role="status">
+        {message}
+      </p>
+    );
   }
 
   return (
@@ -449,6 +502,7 @@ function AssignmentList({
         }
 
         const googleCalendarUrl = generateGoogleCalendarUrl(assignment);
+        const canvasUrl = getSafeHttpsUrl(assignment.htmlUrl);
         const unavailableMessageId = googleCalendarUrl
           ? undefined
           : `calendar-unavailable-${assignment.courseId}-${assignment.id}`;
@@ -474,15 +528,19 @@ function AssignmentList({
                   </span>
                 )}
               </p>
-              <a
-                className="canvas-link-button"
-                href={assignment.htmlUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label={`Open ${assignment.name} in Canvas`}
-              >
-                Open in Canvas
-              </a>
+              {canvasUrl ? (
+                <a
+                  className="canvas-link-button"
+                  href={canvasUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={`Open ${assignment.name} in Canvas (opens in a new tab)`}
+                >
+                  Open in Canvas
+                </a>
+              ) : (
+                <span className="canvas-link-unavailable">Canvas link unavailable</span>
+              )}
             </div>
 
             <div
@@ -587,11 +645,8 @@ function formatDueDate(value: string | null, status: AssignmentStatus): string {
   })}`;
 }
 
-function formatCourseFailureWarning(failedCourseCount: number): string {
-  const courseLabel = failedCourseCount === 1 ? 'course' : 'courses';
-  return `${failedCourseCount} ${courseLabel} could not be synced. Showing assignments from successful courses.`;
-}
-
 function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
+  return error instanceof CanvasConnectionError || error instanceof CanvasHostPermissionError
+    ? error.message
+    : fallback;
 }

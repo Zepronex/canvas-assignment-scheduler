@@ -1,11 +1,13 @@
 {
   "name": "canvas-deadline-copilot",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.15.1",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "package": "node scripts/package.mjs",
     "test:build": "tsc -p tsconfig.test.json",
     "test": "pnpm run test:build && node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit"

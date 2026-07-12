@@ -16,6 +16,7 @@ frontend/build/
 frontend/dist/
 extension/dist/
 extension/.test-build/
+extension/release/
 
 # Environment variables
 .env

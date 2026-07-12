@@ -1,12 +1,15 @@
 import { ASSIGNMENTS_UPDATED_MESSAGE } from '../lib/messages';
-import { applyReminderAlarmReconciliation } from '../lib/reminderRuntime';
 import {
-  buildReminderSchedule,
+  createNotificationThenRecordDelivery,
+  openNotificationAndAlwaysCleanup,
+  rebuildReminderAlarmSchedule,
+  type ReminderAlarmApi,
+} from '../lib/reminderRuntime';
+import {
   findAssignmentForReminder,
   formatReminderTimeRemaining,
   getReminderNotificationUrl,
   parseReminderAlarmName,
-  reconcileReminderAlarms,
   REMINDER_ALARM_PREFIX,
 } from '../lib/reminders';
 import {
@@ -16,9 +19,15 @@ import {
   markReminderDelivered,
   STORAGE_KEYS,
 } from '../lib/storage';
+import { getSafeHttpsUrl } from '../lib/urls';
 
 let rebuildQueue = Promise.resolve();
 let alarmQueue = Promise.resolve();
+const reminderAlarmApi: ReminderAlarmApi = {
+  getAll: getAllAlarms,
+  clear: clearAlarm,
+  create: createAlarm,
+};
 
 chrome.runtime.onInstalled.addListener(() => requestReminderRebuild());
 chrome.runtime.onStartup.addListener(() => requestReminderRebuild());
@@ -50,8 +59,12 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.notifications.onClicked.addListener((notificationId) => {
-  void openReminderNotification(notificationId);
+  void openReminderNotification(notificationId).catch(() => undefined);
 });
+
+// Alarm persistence is not guaranteed across every Chrome version or update.
+// Reconcile whenever the service worker is loaded, in addition to lifecycle events.
+requestReminderRebuild();
 
 function requestReminderRebuild(): void {
   rebuildQueue = rebuildQueue
@@ -61,28 +74,16 @@ function requestReminderRebuild(): void {
 }
 
 async function rebuildReminderAlarms(): Promise<void> {
-  const [cache, settings, history, existingAlarms] = await Promise.all([
-    getAssignmentCache(),
-    getReminderSettings(),
-    getReminderDeliveryHistory(),
-    getAllAlarms(),
-  ]);
-  const desiredReminders = buildReminderSchedule(
-    cache?.assignments ?? [],
-    settings,
-    new Date(),
-    new Set(Object.keys(history)),
-  );
-  const reconciliation = reconcileReminderAlarms(
-    existingAlarms.map(({ name }) => name),
-    desiredReminders,
-  );
-
-  await applyReminderAlarmReconciliation(reconciliation, {
-    clear: clearAlarm,
-    create(alarmName, scheduledTime) {
-      chrome.alarms.create(alarmName, { when: scheduledTime });
+  await rebuildReminderAlarmSchedule({
+    async getAssignments() {
+      return (await getAssignmentCache())?.assignments ?? [];
     },
+    getSettings: getReminderSettings,
+    async getDeliveredAlarmNames() {
+      const history = await getReminderDeliveryHistory();
+      return new Set(Object.keys(history));
+    },
+    alarms: reminderAlarmApi,
   });
 }
 
@@ -113,15 +114,18 @@ async function handleReminderAlarm(alarmName: string): Promise<void> {
   }
 
   const assignmentUrl = getSafeHttpsUrl(assignment.htmlUrl);
-  await markReminderDelivered(alarmName, assignmentUrl);
-  await createNotification(alarmName, {
-    type: 'basic',
-    iconUrl: chrome.runtime.getURL('icon128.png'),
-    title: assignment.name,
-    message: `${assignment.courseName} · Due ${formatDueAt(identity.dueAtTimestamp)}`,
-    contextMessage: `Canvas deadline · ${formatReminderTimeRemaining(identity.windowMinutes)} reminder`,
-    priority: 1,
-  });
+  await createNotificationThenRecordDelivery(
+    () =>
+      createNotification(alarmName, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icon128.png'),
+        title: assignment.name,
+        message: `${assignment.courseName} · Due ${formatDueAt(identity.dueAtTimestamp)}`,
+        contextMessage: `Canvas deadline · ${formatReminderTimeRemaining(identity.windowMinutes)} reminder`,
+        priority: 1,
+      }),
+    () => markReminderDelivered(alarmName, assignmentUrl),
+  );
 }
 
 async function openReminderNotification(notificationId: string): Promise<void> {
@@ -129,20 +133,65 @@ async function openReminderNotification(notificationId: string): Promise<void> {
     return;
   }
 
-  const history = await getReminderDeliveryHistory();
-  const assignmentUrl = getReminderNotificationUrl(history, notificationId);
-  if (assignmentUrl) {
-    await chrome.tabs.create({ url: assignmentUrl });
-  }
-  await clearNotification(notificationId);
+  await openNotificationAndAlwaysCleanup(
+    async () => {
+      const history = await getReminderDeliveryHistory();
+      return getReminderNotificationUrl(history, notificationId);
+    },
+    openTab,
+    () => clearNotification(notificationId),
+  );
 }
 
 function getAllAlarms(): Promise<chrome.alarms.Alarm[]> {
-  return new Promise((resolve) => chrome.alarms.getAll(resolve));
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.alarms.getAll((alarms) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Unable to read scheduled browser reminders.'));
+          return;
+        }
+
+        resolve(Array.isArray(alarms) ? alarms : []);
+      });
+    } catch {
+      reject(new Error('Unable to read scheduled browser reminders.'));
+    }
+  });
 }
 
 function clearAlarm(alarmName: string): Promise<void> {
-  return new Promise((resolve) => chrome.alarms.clear(alarmName, () => resolve()));
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.alarms.clear(alarmName, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Unable to remove a stale browser reminder.'));
+          return;
+        }
+
+        resolve();
+      });
+    } catch {
+      reject(new Error('Unable to remove a stale browser reminder.'));
+    }
+  });
+}
+
+function createAlarm(alarmName: string, scheduledTime: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.alarms.create(alarmName, { when: scheduledTime }, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Unable to schedule a browser reminder.'));
+          return;
+        }
+
+        resolve();
+      });
+    } catch {
+      reject(new Error('Unable to schedule a browser reminder.'));
+    }
+  });
 }
 
 function createNotification(
@@ -150,19 +199,52 @@ function createNotification(
   options: chrome.notifications.NotificationOptions<true>,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    chrome.notifications.create(notificationId, options, () => {
-      const error = chrome.runtime.lastError;
-      if (error) {
-        reject(new Error('Unable to create the deadline notification.'));
-        return;
-      }
-      resolve();
-    });
+    try {
+      chrome.notifications.create(notificationId, options, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Unable to create the deadline notification.'));
+          return;
+        }
+        resolve();
+      });
+    } catch {
+      reject(new Error('Unable to create the deadline notification.'));
+    }
+  });
+}
+
+function openTab(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.tabs.create({ url }, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Unable to open the Canvas assignment.'));
+          return;
+        }
+
+        resolve();
+      });
+    } catch {
+      reject(new Error('Unable to open the Canvas assignment.'));
+    }
   });
 }
 
 function clearNotification(notificationId: string): Promise<void> {
-  return new Promise((resolve) => chrome.notifications.clear(notificationId, () => resolve()));
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.notifications.clear(notificationId, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Unable to clear the deadline notification.'));
+          return;
+        }
+
+        resolve();
+      });
+    } catch {
+      reject(new Error('Unable to clear the deadline notification.'));
+    }
+  });
 }
 
 function formatDueAt(timestamp: number): string {
@@ -170,15 +252,6 @@ function formatDueAt(timestamp: number): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(timestamp));
-}
-
-function getSafeHttpsUrl(value: string): string | null {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' ? url.toString() : null;
-  } catch {
-    return null;
-  }
 }
 
 function isAssignmentsUpdatedMessage(value: unknown): boolean {
