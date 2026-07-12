@@ -9,6 +9,7 @@ import type {
   ReminderWindowMinutes,
 } from '../types';
 import { DEFAULT_REMINDER_SETTINGS, isReminderWindow } from './reminders.js';
+import { getSafeHttpsUrl, isSafeHttpsUrl } from './urls.js';
 
 export const STORAGE_KEYS = {
   settings: 'settings',
@@ -27,20 +28,29 @@ interface LocalStorageSchema {
 }
 
 export async function getSettings(): Promise<CanvasSettings> {
-  return (
-    (await getStoredValue<CanvasSettings>(STORAGE_KEYS.settings)) ?? {
-      canvasUrl: '',
-      canvasToken: '',
-    }
-  );
+  const stored = await getStoredValue<unknown>(STORAGE_KEYS.settings);
+  if (stored === undefined) {
+    return emptyCanvasSettings();
+  }
+
+  const settings = normalizeStoredCanvasSettings(stored);
+  if (settings) {
+    return settings;
+  }
+
+  await discardCorruptedValue(STORAGE_KEYS.settings);
+  return emptyCanvasSettings();
 }
 
 export async function saveSettings(settings: CanvasSettings): Promise<void> {
-  const normalizedSettings = {
-    canvasUrl: settings.canvasUrl.trim(),
-    canvasToken: settings.canvasToken.trim(),
-  };
-  const storedSettings = await getStoredValue<CanvasSettings>(STORAGE_KEYS.settings);
+  const normalizedSettings = normalizeStoredCanvasSettings(settings);
+  if (!normalizedSettings || !normalizedSettings.canvasUrl || !normalizedSettings.canvasToken) {
+    throw new Error('Enter a valid HTTPS Canvas URL and API token.');
+  }
+
+  const storedSettings = normalizeStoredCanvasSettings(
+    await getStoredValue<unknown>(STORAGE_KEYS.settings),
+  );
 
   if (
     !storedSettings ||
@@ -58,8 +68,13 @@ export async function clearSettings(): Promise<void> {
 }
 
 export async function getAssignmentNotes(): Promise<AssignmentNotes> {
-  const notes = await getStoredValue<AssignmentNotes>(STORAGE_KEYS.assignmentNotes);
-  return isStringRecord(notes) ? notes : {};
+  const notes = await getStoredValue<unknown>(STORAGE_KEYS.assignmentNotes);
+  if (notes === undefined || isStringRecord(notes)) {
+    return notes ?? {};
+  }
+
+  await discardCorruptedValue(STORAGE_KEYS.assignmentNotes);
+  return {};
 }
 
 export async function saveAssignmentNote(
@@ -87,10 +102,22 @@ export async function deleteAssignmentNote(
 
 export async function getAssignmentCache(): Promise<AssignmentSyncResult | null> {
   const cache = await getStoredValue<unknown>(STORAGE_KEYS.assignmentCache);
-  return isAssignmentSyncResult(cache) ? cache : null;
+  if (cache === undefined) {
+    return null;
+  }
+  if (isAssignmentSyncResult(cache)) {
+    return cache;
+  }
+
+  await discardCorruptedValue(STORAGE_KEYS.assignmentCache);
+  return null;
 }
 
 export async function saveAssignmentCache(result: AssignmentSyncResult): Promise<void> {
+  if (!isAssignmentSyncResult(result)) {
+    throw new Error('The assignment cache could not be saved because its data is invalid.');
+  }
+
   await setStoredValue(STORAGE_KEYS.assignmentCache, result);
 }
 
@@ -100,7 +127,11 @@ export async function clearAssignmentCache(): Promise<void> {
 
 export async function getReminderSettings(): Promise<ReminderSettings> {
   const stored = await getStoredValue<unknown>(STORAGE_KEYS.reminderSettings);
+  if (stored === undefined) {
+    return cloneDefaultReminderSettings();
+  }
   if (!isRecord(stored) || typeof stored.enabled !== 'boolean' || !Array.isArray(stored.windows)) {
+    await discardCorruptedValue(STORAGE_KEYS.reminderSettings);
     return cloneDefaultReminderSettings();
   }
 
@@ -108,7 +139,8 @@ export async function getReminderSettings(): Promise<ReminderSettings> {
     (window): window is ReminderWindowMinutes =>
       typeof window === 'number' && isReminderWindow(window),
   );
-  if (windows.length !== stored.windows.length) {
+  if (windows.length !== stored.windows.length || (stored.enabled && windows.length === 0)) {
+    await discardCorruptedValue(STORAGE_KEYS.reminderSettings);
     return cloneDefaultReminderSettings();
   }
 
@@ -132,23 +164,40 @@ export async function saveReminderSettings(settings: ReminderSettings): Promise<
 
 export async function getReminderDeliveryHistory(): Promise<ReminderDeliveryHistory> {
   const stored = await getStoredValue<unknown>(STORAGE_KEYS.reminderDeliveryHistory);
+  if (stored === undefined) {
+    return {};
+  }
   if (!isRecord(stored)) {
+    await discardCorruptedValue(STORAGE_KEYS.reminderDeliveryHistory);
     return {};
   }
 
   const history: ReminderDeliveryHistory = {};
+  let wasSanitized = false;
   for (const [alarmName, value] of Object.entries(stored)) {
     if (
       isRecord(value) &&
       typeof value.deliveredAt === 'number' &&
       Number.isFinite(value.deliveredAt) &&
+      value.deliveredAt > 0 &&
       (value.assignmentUrl === null || typeof value.assignmentUrl === 'string')
     ) {
+      const assignmentUrl =
+        typeof value.assignmentUrl === 'string'
+          ? getSafeHttpsUrl(value.assignmentUrl)
+          : null;
       history[alarmName] = {
         deliveredAt: value.deliveredAt,
-        assignmentUrl: value.assignmentUrl,
+        assignmentUrl,
       };
+      wasSanitized ||= assignmentUrl !== value.assignmentUrl;
+    } else {
+      wasSanitized = true;
     }
+  }
+
+  if (wasSanitized) {
+    await replaceCorruptedValue(STORAGE_KEYS.reminderDeliveryHistory, history);
   }
 
   return history;
@@ -178,7 +227,7 @@ async function getStoredValue<T>(key: keyof LocalStorageSchema): Promise<T | und
     storage.get(key, (items) => {
       const error = chrome.runtime.lastError;
       if (error) {
-        reject(new Error(error.message));
+        reject(new Error('Unable to read local extension storage.'));
         return;
       }
 
@@ -197,7 +246,7 @@ async function setStoredValue<K extends keyof LocalStorageSchema>(
     storage.set({ [key]: value }, () => {
       const error = chrome.runtime.lastError;
       if (error) {
-        reject(new Error(error.message));
+        reject(new Error('Unable to save data to local extension storage.'));
         return;
       }
 
@@ -213,7 +262,7 @@ async function removeStoredValue(key: keyof LocalStorageSchema): Promise<void> {
     storage.remove(key, () => {
       const error = chrome.runtime.lastError;
       if (error) {
-        reject(new Error(error.message));
+        reject(new Error('Unable to clear data from local extension storage.'));
         return;
       }
 
@@ -245,6 +294,58 @@ function cloneDefaultReminderSettings(): ReminderSettings {
   };
 }
 
+function emptyCanvasSettings(): CanvasSettings {
+  return { canvasUrl: '', canvasToken: '' };
+}
+
+function normalizeStoredCanvasSettings(value: unknown): CanvasSettings | null {
+  if (
+    !isRecord(value) ||
+    typeof value.canvasUrl !== 'string' ||
+    typeof value.canvasToken !== 'string'
+  ) {
+    return null;
+  }
+
+  const canvasUrl = value.canvasUrl.trim();
+  const canvasToken = value.canvasToken.trim();
+  if (!canvasUrl && !canvasToken) {
+    return emptyCanvasSettings();
+  }
+  if (!canvasUrl || !canvasToken) {
+    return null;
+  }
+
+  const safeUrl = getSafeHttpsUrl(canvasUrl);
+  if (!safeUrl) {
+    return null;
+  }
+
+  return {
+    canvasUrl: new URL(safeUrl).origin,
+    canvasToken,
+  };
+}
+
+async function discardCorruptedValue(key: keyof LocalStorageSchema): Promise<void> {
+  try {
+    await removeStoredValue(key);
+  } catch {
+    // The validated fallback remains safe even if Chrome cannot self-heal storage yet.
+  }
+}
+
+async function replaceCorruptedValue<K extends keyof LocalStorageSchema>(
+  key: K,
+  value: LocalStorageSchema[K],
+): Promise<void> {
+  try {
+    await setStoredValue(key, value);
+  } catch {
+    // Return sanitized data now and retry normalization the next time storage is read.
+  }
+}
+
 function isAssignmentSyncResult(value: unknown): value is AssignmentSyncResult {
   if (
     !isRecord(value) ||
@@ -256,7 +357,11 @@ function isAssignmentSyncResult(value: unknown): value is AssignmentSyncResult {
     return false;
   }
 
-  return value.courses.every(isCanvasCourse) && value.assignments.every(isNormalizedAssignment);
+  return (
+    value.courses.every(isCanvasCourse) &&
+    value.assignments.every(isNormalizedAssignment) &&
+    (value.failedCourseCount === undefined || value.failedCourseCount <= value.courses.length)
+  );
 }
 
 function isCanvasCourse(value: unknown): value is CanvasCourse {
@@ -286,6 +391,7 @@ function isNormalizedAssignment(value: unknown): value is NormalizedAssignment {
     isNonEmptyString(value.name) &&
     (value.dueAt === null || isTimestamp(value.dueAt)) &&
     isNonEmptyString(value.htmlUrl) &&
+    isSafeHttpsUrl(value.htmlUrl) &&
     (value.pointsPossible === null ||
       (typeof value.pointsPossible === 'number' && Number.isFinite(value.pointsPossible))) &&
     isNonEmptyString(value.workflowState) &&
@@ -310,5 +416,9 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isTimestamp(value: unknown): value is string {
-  return isNonEmptyString(value) && !Number.isNaN(Date.parse(value));
+  return (
+    isNonEmptyString(value) &&
+    /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) &&
+    !Number.isNaN(Date.parse(value))
+  );
 }

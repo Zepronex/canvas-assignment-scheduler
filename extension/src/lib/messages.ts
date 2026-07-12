@@ -1,14 +1,38 @@
 export const ASSIGNMENTS_UPDATED_MESSAGE = 'canvas-deadline:assignments-updated';
 
 export async function notifyAssignmentsUpdated(): Promise<void> {
-  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
-    return;
-  }
+  try {
+    if (
+      typeof chrome === 'undefined' ||
+      !chrome.runtime ||
+      typeof chrome.runtime.sendMessage !== 'function'
+    ) {
+      return;
+    }
 
-  await new Promise<void>((resolve) => {
-    chrome.runtime.sendMessage({ type: ASSIGNMENTS_UPDATED_MESSAGE }, () => {
-      void chrome.runtime.lastError;
-      resolve();
-    });
-  });
+    const sendResult = chrome.runtime.sendMessage(
+      { type: ASSIGNMENTS_UPDATED_MESSAGE },
+      () => {
+        try {
+          void chrome.runtime.lastError;
+        } catch {
+          // The assignment cache is already saved, so messaging must remain best effort.
+        }
+      },
+    ) as unknown;
+
+    if (isPromiseLike(sendResult)) {
+      await sendResult;
+    }
+  } catch {
+    // A stopped or unavailable service worker must not turn a successful sync into an error.
+  }
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return Boolean(
+    value &&
+      (typeof value === 'object' || typeof value === 'function') &&
+      typeof (value as PromiseLike<unknown>).then === 'function',
+  );
 }

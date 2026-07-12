@@ -4,6 +4,7 @@ import type {
   ReminderSettings,
   ReminderWindowMinutes,
 } from '../types';
+import { getSafeHttpsUrl } from './urls.js';
 
 export const REMINDER_ALARM_PREFIX = 'canvas-deadline:reminder:v1:';
 
@@ -180,12 +181,7 @@ export function getReminderNotificationUrl(
     return null;
   }
 
-  try {
-    const url = new URL(assignmentUrl);
-    return url.protocol === 'https:' ? url.toString() : null;
-  } catch {
-    return null;
-  }
+  return getSafeHttpsUrl(assignmentUrl);
 }
 
 export function isReminderWindow(value: number): value is ReminderWindowMinutes {

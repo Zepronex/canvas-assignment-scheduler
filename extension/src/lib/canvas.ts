@@ -5,6 +5,7 @@ import type {
   CanvasSettings,
   NormalizedAssignment,
 } from '../types';
+import { getSafeHttpsUrl } from './urls.js';
 
 export interface CanvasConnectionProfile {
   id: number;
@@ -226,7 +227,8 @@ export async function fetchCanvasAssignmentsForCourse(
     fetchImpl,
   );
 
-  return assignments.map(parseCanvasAssignment);
+  const canvasOrigin = normalizeCanvasBaseUrl(settings.canvasUrl);
+  return assignments.map((assignment) => parseCanvasAssignment(assignment, canvasOrigin));
 }
 
 export function normalizeCanvasAssignment(
@@ -318,6 +320,10 @@ async function fetchCanvasJson(
     );
   }
 
+  if (response.url) {
+    assertCanvasOrigin(response.url, new URL(requestUrl).origin);
+  }
+
   if (response.status === 401) {
     throw new CanvasConnectionError(
       'unauthorized',
@@ -379,14 +385,19 @@ function resolveCanvasPageUrl(nextPage: string, currentPage: string, canvasOrigi
 }
 
 function assertCanvasOrigin(requestUrl: string, canvasOrigin: string): void {
-  let requestOrigin: string;
+  let requestUrlObject: URL;
   try {
-    requestOrigin = new URL(requestUrl).origin;
+    requestUrlObject = new URL(requestUrl);
   } catch {
     throw new CanvasConnectionError('unexpected-response', 'Canvas returned an invalid API URL.');
   }
 
-  if (requestOrigin !== canvasOrigin) {
+  if (
+    requestUrlObject.protocol !== 'https:' ||
+    requestUrlObject.username ||
+    requestUrlObject.password ||
+    requestUrlObject.origin !== canvasOrigin
+  ) {
     throw new CanvasConnectionError(
       'unexpected-response',
       'Canvas returned a pagination link for a different site, so the sync was stopped.',
@@ -457,7 +468,7 @@ function parseCanvasCourse(payload: unknown): CanvasCourse {
   };
 }
 
-function parseCanvasAssignment(payload: unknown): CanvasAssignment {
+function parseCanvasAssignment(payload: unknown, canvasOrigin: string): CanvasAssignment {
   if (
     !isRecord(payload) ||
     !isCanvasId(payload.id) ||
@@ -471,7 +482,7 @@ function parseCanvasAssignment(payload: unknown): CanvasAssignment {
   }
 
   const name = payload.name.trim();
-  const htmlUrl = payload.html_url.trim();
+  const htmlUrl = getSafeHttpsUrl(payload.html_url.trim());
   const workflowState = payload.workflow_state.trim();
   const updatedAt = payload.updated_at.trim();
   const dueAt = payload.due_at;
@@ -480,6 +491,7 @@ function parseCanvasAssignment(payload: unknown): CanvasAssignment {
   if (
     !name ||
     !htmlUrl ||
+    new URL(htmlUrl).origin !== canvasOrigin ||
     !workflowState ||
     !isTimestamp(updatedAt) ||
     (dueAt !== null && (typeof dueAt !== 'string' || !isTimestamp(dueAt))) ||
@@ -513,7 +525,11 @@ function isCanvasId(value: unknown): value is number {
 }
 
 function isTimestamp(value: string): boolean {
-  return value.trim().length > 0 && !Number.isNaN(Date.parse(value));
+  return (
+    value.trim().length > 0 &&
+    /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

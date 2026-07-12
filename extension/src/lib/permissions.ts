@@ -1,4 +1,4 @@
-import { normalizeCanvasBaseUrl } from './canvas';
+import { normalizeCanvasBaseUrl } from './canvas.js';
 
 export class CanvasHostPermissionError extends Error {
   constructor(message: string) {
@@ -9,17 +9,17 @@ export class CanvasHostPermissionError extends Error {
 
 export async function ensureCanvasHostPermission(canvasUrl: string): Promise<void> {
   const permission = buildCanvasHostPermission(canvasUrl);
-
-  if (await hasPermission(permission)) {
-    return;
-  }
-
   const granted = await requestPermission(permission);
   if (!granted) {
     throw new CanvasHostPermissionError(
       'Allow this extension to contact your Canvas site, then try again.',
     );
   }
+}
+
+export async function revokeCanvasHostPermission(canvasUrl: string): Promise<void> {
+  const permission = buildCanvasHostPermission(canvasUrl);
+  await removePermission(permission);
 }
 
 function buildCanvasHostPermission(canvasUrl: string): chrome.permissions.Permissions {
@@ -41,22 +41,6 @@ function getChromePermissions(): typeof chrome.permissions {
   return chrome.permissions;
 }
 
-function hasPermission(permission: chrome.permissions.Permissions): Promise<boolean> {
-  const permissions = getChromePermissions();
-
-  return new Promise((resolve, reject) => {
-    permissions.contains(permission, (hasHostPermission) => {
-      const error = chrome.runtime.lastError;
-      if (error) {
-        reject(new CanvasHostPermissionError('Chrome could not check access to this Canvas site.'));
-        return;
-      }
-
-      resolve(hasHostPermission);
-    });
-  });
-}
-
 function requestPermission(permission: chrome.permissions.Permissions): Promise<boolean> {
   const permissions = getChromePermissions();
 
@@ -69,6 +53,22 @@ function requestPermission(permission: chrome.permissions.Permissions): Promise<
       }
 
       resolve(granted);
+    });
+  });
+}
+
+function removePermission(permission: chrome.permissions.Permissions): Promise<void> {
+  const permissions = getChromePermissions();
+
+  return new Promise((resolve, reject) => {
+    permissions.remove(permission, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new CanvasHostPermissionError('Chrome could not remove access to this Canvas site.'));
+        return;
+      }
+
+      resolve();
     });
   });
 }

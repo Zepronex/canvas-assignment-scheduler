@@ -55,6 +55,43 @@ test('supports multiple windows while ignoring windows whose send time has passe
   );
 });
 
+test('uses exact elapsed reminder windows across daylight-saving transitions', () => {
+  const reminders = buildReminderSchedule(
+    [
+      assignment({
+        id: 1,
+        dueAt: '2026-03-08T03:30:00-04:00',
+      }),
+      assignment({
+        id: 2,
+        dueAt: '2026-11-01T01:30:00-05:00',
+      }),
+    ],
+    reminderSettings([1440]),
+    new Date('2026-03-01T00:00:00.000Z'),
+  );
+
+  assert.deepEqual(
+    reminders.map(({ assignmentId, dueAtTimestamp, scheduledTime }) => ({
+      assignmentId,
+      dueAtTimestamp,
+      scheduledTime,
+    })),
+    [
+      {
+        assignmentId: 1,
+        dueAtTimestamp: Date.parse('2026-03-08T07:30:00.000Z'),
+        scheduledTime: Date.parse('2026-03-07T07:30:00.000Z'),
+      },
+      {
+        assignmentId: 2,
+        dueAtTimestamp: Date.parse('2026-11-01T06:30:00.000Z'),
+        scheduledTime: Date.parse('2026-10-31T06:30:00.000Z'),
+      },
+    ],
+  );
+});
+
 test('disabled reminders produce no schedule', () => {
   const reminders = buildReminderSchedule(
     [assignment()],
