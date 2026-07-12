@@ -251,16 +251,33 @@ export async function syncCanvasAssignments(
   fetchImpl: typeof fetch = fetch,
 ): Promise<AssignmentSyncResult> {
   const courses = await fetchCanvasCourses(settings, fetchImpl);
+  const syncableCourses = courses.filter((course) => !course.access_restricted_by_date);
   const assignments: NormalizedAssignment[] = [];
+  const courseResults = await Promise.allSettled(
+    syncableCourses.map(async (course) => {
+      const courseAssignments = await fetchCanvasAssignmentsForCourse(
+        settings,
+        course.id,
+        fetchImpl,
+      );
 
-  for (const course of courses) {
-    if (course.access_restricted_by_date) {
-      continue;
+      return courseAssignments.map((assignment) => normalizeCanvasAssignment(assignment, course));
+    }),
+  );
+  let failedCourseCount = 0;
+
+  for (const result of courseResults) {
+    if (result.status === 'fulfilled') {
+      assignments.push(...result.value);
+    } else {
+      failedCourseCount += 1;
     }
+  }
 
-    const courseAssignments = await fetchCanvasAssignmentsForCourse(settings, course.id, fetchImpl);
-    assignments.push(
-      ...courseAssignments.map((assignment) => normalizeCanvasAssignment(assignment, course)),
+  if (syncableCourses.length > 0 && failedCourseCount === syncableCourses.length) {
+    throw new CanvasConnectionError(
+      'unexpected-response',
+      'Canvas assignments could not be loaded from any active course.',
     );
   }
 
@@ -268,6 +285,7 @@ export async function syncCanvasAssignments(
     courses,
     assignments,
     lastSyncedAt: new Date().toISOString(),
+    failedCourseCount,
   };
 }
 
